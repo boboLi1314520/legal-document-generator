@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 项目文件
+.env
+uploads/
+outputs/
+*.txt
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 公司敏感文件
+公司文件汇总/
