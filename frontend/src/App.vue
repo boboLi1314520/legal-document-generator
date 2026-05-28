@@ -108,6 +108,87 @@
               </el-button>
             </div>
           </el-tab-pane>
+
+          <el-tab-pane label="批量生成律师函" name="batch_lawyer">
+            <div class="batch-lawyer-section">
+              <!-- 上传XLSX区域 -->
+              <div class="batch-upload-area">
+                <el-upload
+                  ref="xlsxUploadRef"
+                  class="batch-xlsx-upload"
+                  drag
+                  :auto-upload="false"
+                  :on-change="handleXlsxChange"
+                  :file-list="xlsxFileList"
+                  :show-file-list="false"
+                  accept=".xlsx"
+                  :limit="1"
+                >
+                  <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+                  <div class="el-upload__text">
+                    将律师函数据Excel拖到此处，或<em>点击选择文件</em>
+                  </div>
+                  <template #tip>
+                    <div class="el-upload__tip">
+                      第一行为表头（列名与模板变量对应），每行为一封律师函的数据
+                    </div>
+                  </template>
+                </el-upload>
+                <div v-if="xlsxFileList.length > 0" style="text-align: center; margin-top: 12px;">
+                  <el-tag type="primary" size="large" closable @close="clearXlsxFile">
+                    <el-icon><Document /></el-icon>
+                    {{ xlsxFileList[0]?.name }}
+                  </el-tag>
+                </div>
+                <div class="process-actions">
+                  <el-button type="primary" size="large" @click="previewXlsx" :loading="previewingXlsx" :disabled="xlsxFileList.length === 0">
+                    <el-icon><View /></el-icon>
+                    预览数据
+                  </el-button>
+                </div>
+              </div>
+
+              <!-- 模板变量提示 -->
+              <div v-if="templateVariables.length > 0" class="template-vars-hint">
+                <el-alert type="info" :closable="false" show-icon>
+                  <template #title>
+                    模板变量参考（共{{ templateVariables.length }}个）
+                  </template>
+                  <template #default>
+                    <div class="var-tags">
+                      <el-tag v-for="v in templateVariables" :key="v" size="small" type="info" class="var-tag-item">
+                        {{ v }}
+                      </el-tag>
+                    </div>
+                  </template>
+                </el-alert>
+              </div>
+
+              <!-- 数据预览表格 -->
+              <div v-if="xlsxPreviewData.columns.length > 0" class="xlsx-preview">
+                <div class="preview-header">
+                  <h4>
+                    <el-icon><DataAnalysis /></el-icon>
+                    数据预览（共{{ xlsxPreviewData.row_count }}条记录）
+                  </h4>
+                  <el-button type="success" size="large" @click="batchGenerateLawyerLetters" :loading="batchGenerating">
+                    <el-icon><Download /></el-icon>
+                    一键生成律师函
+                  </el-button>
+                </div>
+                <el-table :data="xlsxPreviewData.rows" border stripe size="small" max-height="400" style="width: 100%">
+                  <el-table-column
+                    v-for="col in xlsxPreviewData.columns"
+                    :key="col"
+                    :prop="col"
+                    :label="col"
+                    min-width="140"
+                    show-overflow-tooltip
+                  />
+                </el-table>
+              </div>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </el-card>
 
@@ -704,6 +785,18 @@ const selectedDocs = ref([
 const generating = ref(false)
 const generatedFiles = ref([])
 
+// 批量生成律师函相关
+const xlsxUploadRef = ref(null)
+const xlsxFileList = ref([])
+const xlsxPreviewData = reactive({
+  columns: [],
+  rows: [],
+  row_count: 0
+})
+const templateVariables = ref([])
+const previewingXlsx = ref(false)
+const batchGenerating = ref(false)
+
 // 文件类型映射
 const FILE_TYPE_MAP = {
   'public_report': { label: '公示系统', tag: 'success' },
@@ -948,6 +1041,113 @@ function downloadFile(file) {
   link.href = file.url
   link.download = `${file.name}.docx`
   link.click()
+}
+
+// 批量生成律师函 - XLSX文件选择
+function handleXlsxChange(file, list) {
+  xlsxFileList.value = list
+  // 清空之前的预览数据
+  xlsxPreviewData.columns = []
+  xlsxPreviewData.rows = []
+  xlsxPreviewData.row_count = 0
+  templateVariables.value = []
+}
+
+function clearXlsxFile() {
+  xlsxFileList.value = []
+  xlsxUploadRef.value?.clearFiles()
+  xlsxPreviewData.columns = []
+  xlsxPreviewData.rows = []
+  xlsxPreviewData.row_count = 0
+  templateVariables.value = []
+}
+
+// 批量生成律师函 - 预览XLSX数据
+async function previewXlsx() {
+  if (xlsxFileList.value.length === 0) {
+    ElMessage.warning('请先选择XLSX文件')
+    return
+  }
+
+  previewingXlsx.value = true
+  try {
+    const file = xlsxFileList.value[0].raw
+    const response = await fetch('/api/batch/preview-lawyer-letter-xlsx', {
+      method: 'POST',
+      body: (() => {
+        const fd = new FormData()
+        fd.append('file', file)
+        return fd
+      })()
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      xlsxPreviewData.columns = result.columns
+      xlsxPreviewData.rows = result.rows
+      xlsxPreviewData.row_count = result.row_count
+      templateVariables.value = result.template_variables || []
+      ElMessage.success(`读取成功，共 ${result.row_count} 条记录`)
+    } else {
+      throw new Error(result.message || '读取失败')
+    }
+  } catch (error) {
+    ElMessage.error('预览失败: ' + error.message)
+  } finally {
+    previewingXlsx.value = false
+  }
+}
+
+// 批量生成律师函 - 一键生成
+async function batchGenerateLawyerLetters() {
+  if (xlsxFileList.value.length === 0) {
+    ElMessage.warning('请先选择XLSX文件')
+    return
+  }
+
+  if (xlsxPreviewData.row_count === 0) {
+    ElMessage.warning('请先预览数据')
+    return
+  }
+
+  batchGenerating.value = true
+  try {
+    const file = xlsxFileList.value[0].raw
+    const response = await fetch('/api/batch/generate-lawyer-letters', {
+      method: 'POST',
+      body: (() => {
+        const fd = new FormData()
+        fd.append('file', file)
+        return fd
+      })()
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const contentDisposition = response.headers.get('content-disposition')
+      let filename = '律师函_批量生成.docx'
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?(.+)/i)
+        if (match) filename = decodeURIComponent(match[1])
+      }
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      ElMessage.success(`成功生成 ${xlsxPreviewData.row_count} 份律师函`)
+    } else {
+      throw new Error('生成失败')
+    }
+  } catch (error) {
+    ElMessage.error('生成失败: ' + error.message)
+  } finally {
+    batchGenerating.value = false
+  }
 }
 
 // 初始化
@@ -1361,6 +1561,85 @@ body {
   height: 3px;
   border-radius: 2px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* 批量生成律师函样式 */
+.batch-lawyer-section {
+  padding: 4px 0;
+}
+
+.batch-upload-area {
+  margin-bottom: 24px;
+}
+
+.batch-xlsx-upload :deep(.el-upload-dragger) {
+  width: 100%;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: 2px dashed #d0d5dd;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fafbfc 0%, #f0f4ff 100%);
+  transition: all 0.3s ease;
+}
+
+.batch-xlsx-upload :deep(.el-upload-dragger:hover) {
+  border-color: #67c23a;
+  background: linear-gradient(135deg, #f0fff4 0%, #e8ffe8 100%);
+}
+
+.batch-xlsx-upload :deep(.el-icon--upload) {
+  font-size: 48px;
+  color: #67c23a;
+  margin-bottom: 8px;
+}
+
+.template-vars-hint {
+  margin-bottom: 20px;
+}
+
+.var-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.var-tag-item {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+.xlsx-preview {
+  margin-top: 20px;
+  padding: 20px;
+  background: #fafbfc;
+  border-radius: 12px;
+  border: 1px solid #eaeaea;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.preview-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.preview-header h4 .el-icon {
+  color: #67c23a;
+  font-size: 20px;
 }
 
 /* 表单美化 */

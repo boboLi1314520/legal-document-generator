@@ -4,11 +4,13 @@ Word 文档生成服务 - 重构版
 """
 from docx import Document
 from docx.shared import Pt, Inches, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from typing import Dict
+from typing import Dict, List
 import os
+import re
 import copy
+from docx.oxml.ns import qn
 
 
 class DocxService:
@@ -329,3 +331,253 @@ class DocxService:
             output_files.append(output_path)
 
         return output_files
+
+    def extract_template_variables(self, template_path: str) -> List[str]:
+        """从模板文件中提取所有变量名
+
+        Args:
+            template_path: 模板文件路径
+
+        Returns:
+            变量名列表（去重，不含花括号）
+        """
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"模板文件不存在: {template_path}")
+
+        doc = Document(template_path)
+        variables = set()
+
+        # 从段落中提取
+        for para in doc.paragraphs:
+            found = re.findall(r'\{([^}]+)\}', para.text)
+            for v in found:
+                variables.add(v.strip())
+
+        # 从表格中提取
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        found = re.findall(r'\{([^}]+)\}', para.text)
+                        for v in found:
+                            variables.add(v.strip())
+
+        return sorted(variables)
+
+    def generate_batch_to_single_docx(self, template_path: str, data_rows: List[Dict], output_path: str):
+        """批量生成文书到一个DOCX文件，每条数据单独一页
+
+        Args:
+            template_path: 模板文件路径
+            data_rows: 数据行列表，每行是一个变量字典
+            output_path: 输出文件路径
+        """
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"模板文件不存在: {template_path}")
+
+        master_doc = Document()
+
+        for idx, variables in enumerate(data_rows):
+            # 从模板生成临时文档
+            temp_doc = Document(template_path)
+
+            # 替换临时文档中的变量
+            self._replace_all_in_doc(temp_doc, variables)
+
+            # 将临时文档的所有元素复制到主文档
+            self._copy_doc_elements(temp_doc, master_doc)
+
+            # 除最后一条外，添加分页符
+            if idx < len(data_rows) - 1:
+                master_doc.add_page_break()
+
+        master_doc.save(output_path)
+        return output_path
+
+    def _replace_all_in_doc(self, doc, variables: Dict):
+        """替换文档中所有变量（段落+表格）"""
+        for para in doc.paragraphs:
+            self._replace_paragraph_variables(para, variables)
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        self._replace_paragraph_variables(para, variables)
+
+    def _copy_doc_elements(self, source_doc, target_doc):
+        """将源文档的所有元素复制到目标文档（保留格式）"""
+        # 复制每个段落
+        for para in source_doc.paragraphs:
+            new_para = target_doc.add_paragraph()
+            self._copy_paragraph(para, new_para)
+
+        # 复制表格
+        for table in source_doc.tables:
+            self._copy_table(table, target_doc)
+
+        # 复制节属性（页面设置等）
+        self._copy_section_properties(source_doc, target_doc)
+
+    def _copy_paragraph(self, source_para, target_para):
+        """复制段落内容和格式"""
+        # 复制段落格式
+        target_para.alignment = source_para.alignment
+        if source_para.style:
+            try:
+                target_para.style = source_para.style
+            except Exception:
+                pass
+
+        # 复制段落级属性
+        self._copy_paragraph_properties(source_para, target_para)
+
+        # 复制每个run
+        for run in source_para.runs:
+            new_run = target_para.add_run(run.text)
+            self._copy_run_format(run, new_run)
+
+        # 如果源段落有runs，清空默认空run
+        if source_para.runs and target_para.runs:
+            # 移除初始的空run（如果存在）
+            pass
+
+    def _copy_paragraph_properties(self, source_para, target_para):
+        """复制段落属性（缩进、间距等）"""
+        pPr = source_para._element.find(qn('w:pPr'))
+        if pPr is not None:
+            target_pPr = target_para._element.get_or_add_pPr()
+            for child in list(pPr):
+                tag = child.tag
+                # 跳过run级别属性
+                if tag in (qn('w:rPr'), qn('w:rPrChange')):
+                    continue
+                # 移除目标中已有的同名元素
+                existing = target_pPr.findall(tag)
+                for ex in existing:
+                    target_pPr.remove(ex)
+                target_pPr.append(copy.deepcopy(child))
+
+    def _copy_run_format(self, source_run, target_run):
+        """复制run的格式"""
+        if source_run.font.name:
+            target_run.font.name = source_run.font.name
+        if source_run.font.size:
+            target_run.font.size = source_run.font.size
+        if source_run.font.bold is not None:
+            target_run.font.bold = source_run.font.bold
+        if source_run.font.italic is not None:
+            target_run.font.italic = source_run.font.italic
+        if source_run.font.underline is not None:
+            target_run.font.underline = source_run.font.underline
+        if source_run.font.color and source_run.font.color.rgb:
+            target_run.font.color.rgb = source_run.font.color.rgb
+        # 复制中文字体
+        try:
+            rPr_source = source_run._element.find(qn('w:rPr'))
+            if rPr_source is not None:
+                rPr_target = target_run._element.get_or_add_rPr()
+                for child in list(rPr_source):
+                    tag = child.tag
+                    # 跳过已通过python-docx API设置的基本属性
+                    if tag in (qn('w:rFonts'), qn('w:b'), qn('w:i'), qn('w:u'), qn('w:sz'), qn('w:color')):
+                        continue
+                    existing = rPr_target.findall(tag)
+                    for ex in existing:
+                        rPr_target.remove(ex)
+                    rPr_target.append(copy.deepcopy(child))
+        except Exception:
+            pass
+
+    def _copy_table(self, source_table, target_doc):
+        """复制表格到目标文档"""
+        # 创建新表格
+        target_table = target_doc.add_table(rows=len(source_table.rows), cols=len(source_table.columns))
+
+        # 复制表格样式
+        if source_table.style:
+            try:
+                target_table.style = source_table.style
+            except Exception:
+                pass
+
+        # 复制表格对齐方式
+        target_table.alignment = source_table.alignment
+
+        # 复制每个单元格
+        for i, row in enumerate(source_table.rows):
+            for j, cell in enumerate(row.cells):
+                target_cell = target_table.rows[i].cells[j]
+                self._copy_cell(cell, target_cell)
+
+        # 复制表格属性（宽度等）
+        self._copy_table_properties(source_table, target_table)
+
+    def _copy_cell(self, source_cell, target_cell):
+        """复制单元格内容"""
+        # 清除目标单元格默认段落
+        for p in target_cell.paragraphs:
+            p.clear()
+
+        # 复制源单元格的每个段落
+        for i, para in enumerate(source_cell.paragraphs):
+            if i == 0:
+                target_para = target_cell.paragraphs[0]
+                target_para.clear()
+            else:
+                target_para = target_cell.add_paragraph()
+
+            self._copy_paragraph(para, target_para)
+
+        # 复制单元格属性
+        self._copy_cell_properties(source_cell, target_cell)
+
+    def _copy_cell_properties(self, source_cell, target_cell):
+        """复制单元格属性（宽度、合并等）"""
+        tcPr = source_cell._element.find(qn('w:tcPr'))
+        if tcPr is not None:
+            target_tcPr = target_cell._element.get_or_add_tcPr()
+            for child in list(tcPr):
+                existing = target_tcPr.findall(child.tag)
+                for ex in existing:
+                    target_tcPr.remove(ex)
+                target_tcPr.append(copy.deepcopy(child))
+
+    def _copy_table_properties(self, source_table, target_table):
+        """复制表格属性"""
+        tblPr = source_table._element.find(qn('w:tblPr'))
+        if tblPr is not None:
+            target_tblPr = target_table._element.get_or_add_tblPr()
+            for child in list(tblPr):
+                existing = target_tblPr.findall(child.tag)
+                for ex in existing:
+                    target_tblPr.remove(ex)
+                target_tblPr.append(copy.deepcopy(child))
+
+    def _copy_section_properties(self, source_doc, target_doc):
+        """复制节属性（页面设置如页边距、纸张大小等）"""
+        source_sections = source_doc.sections
+        target_sections = target_doc.sections
+
+        if not source_sections:
+            return
+
+        source_sect = source_sections[0]
+        if target_sections:
+            target_sect = target_sections[0]
+        else:
+            return
+
+        # 复制页面设置
+        if source_sect.page_width:
+            target_sect.page_width = source_sect.page_width
+        if source_sect.page_height:
+            target_sect.page_height = source_sect.page_height
+        if source_sect.top_margin:
+            target_sect.top_margin = source_sect.top_margin
+        if source_sect.bottom_margin:
+            target_sect.bottom_margin = source_sect.bottom_margin
+        if source_sect.left_margin:
+            target_sect.left_margin = source_sect.left_margin
+        if source_sect.right_margin:
+            target_sect.right_margin = source_sect.right_margin

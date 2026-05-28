@@ -192,6 +192,27 @@ export default {
     return response.data
   },
 
+  // 预览律师函XLSX数据
+  async previewLawyerLetterXlsx(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post('/batch/preview-lawyer-letter-xlsx', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  // 批量生成律师函
+  async generateLawyerLetters(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post('/batch/generate-lawyer-letters', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      responseType: 'blob'
+    })
+    return response.data
+  },
+
   // 下载文件
   downloadFile(blob, filename) {
     const url = window.URL.createObjectURL(blob)
