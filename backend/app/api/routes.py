@@ -1028,70 +1028,111 @@ async def ai_check_form(case_id: str):
         }
 
 
-# ==================== 批量生成律师函接口 ====================
-
-LAWYER_LETTER_TEMPLATE = "14-律师函模板.docx"
+# ==================== 批量生成文书接口 ====================
 
 
-@router.post("/batch/preview-lawyer-letter-xlsx")
-async def preview_lawyer_letter_xlsx(file: UploadFile = File(...)):
-    """上传律师函数据XLSX，返回表格预览数据和模板变量名
+def _parse_batch_xlsx(file) -> list:
+    """解析批量上传的 XLSX 文件，返回数据行列表（字典格式）"""
+    from openpyxl import load_workbook
 
-    上传的XLSX第一行为表头（列名），每一行为一封律师函的数据
-    """
+    wb = load_workbook(file, read_only=True)
+    ws = wb.active
+    rows_iter = ws.iter_rows(min_row=1, values_only=True)
+    all_rows = [[str(cell) if cell is not None else '' for cell in row] for row in rows_iter]
+    wb.close()
+
+    if len(all_rows) < 2:
+        raise HTTPException(status_code=400, detail="Excel中没有数据行")
+
+    columns = all_rows[0]
+    data_rows = all_rows[1:]
+    data_rows = [row for row in data_rows if any(cell.strip() for cell in row)]
+
+    rows = []
+    for row in data_rows:
+        row_dict = {}
+        for i, col in enumerate(columns):
+            row_dict[col] = row[i] if i < len(row) else ''
+        rows.append(row_dict)
+    return rows
+
+
+async def _do_preview_batch_xlsx(file: UploadFile, doc_type: str):
+    """预览批量XLSX的核心逻辑"""
     if not file.filename.lower().endswith('.xlsx'):
         raise HTTPException(status_code=400, detail="仅支持.xlsx格式文件")
 
+    if doc_type not in doc_type_map:
+        raise HTTPException(status_code=400, detail=f"不支持的文书类型: {doc_type}")
+
+    temp_path = os.path.join(UPLOAD_DIR, f"temp_batch_{uuid.uuid4().hex[:8]}.xlsx")
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    rows = _parse_batch_xlsx(temp_path)
+
+    template_file, _, _ = doc_type_map[doc_type]
+    template_path = os.path.join(TEMPLATE_DIR, template_file)
+    template_variables = []
+    if os.path.exists(template_path):
+        template_variables = docx_service.extract_template_variables(template_path)
+
+    os.remove(temp_path)
+
+    columns = list(rows[0].keys()) if rows else []
+
+    return {
+        "success": True,
+        "columns": columns,
+        "rows": rows,
+        "row_count": len(rows),
+        "template_variables": template_variables
+    }
+
+
+async def _do_generate_batch(file: UploadFile, doc_type: str):
+    """批量生成文书的核心逻辑"""
+    if not file.filename.lower().endswith('.xlsx'):
+        raise HTTPException(status_code=400, detail="仅支持.xlsx格式文件")
+
+    if doc_type not in doc_type_map:
+        raise HTTPException(status_code=400, detail=f"不支持的文书类型: {doc_type}")
+
+    temp_path = os.path.join(UPLOAD_DIR, f"temp_batch_gen_{uuid.uuid4().hex[:8]}.xlsx")
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    rows = _parse_batch_xlsx(temp_path)
+
+    template_file, output_name, _ = doc_type_map[doc_type]
+    template_path = os.path.join(TEMPLATE_DIR, template_file)
+    if not os.path.exists(template_path):
+        raise HTTPException(status_code=400, detail=f"模板不存在: {template_file}")
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_path = os.path.join(OUTPUT_DIR, f"{output_name}_批量生成_{timestamp}.docx")
+    docx_service.generate_batch_to_single_docx(template_path, rows, output_path)
+
+    os.remove(temp_path)
+
+    return FileResponse(
+        output_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"{output_name}_批量生成_{timestamp}.docx"
+    )
+
+
+@router.post("/batch/preview-xlsx")
+async def preview_batch_xlsx(
+    file: UploadFile = File(...),
+    doc_type: str = Form(...)
+):
+    """上传批量数据XLSX，返回表格预览数据和模板变量名
+
+    doc_type: 文书类型（与 doc_type_map 的 key 对应），如 '律师函'、'证据目录' 等
+    """
     try:
-        from openpyxl import load_workbook
-
-        temp_path = os.path.join(UPLOAD_DIR, f"temp_lawyer_{uuid.uuid4().hex[:8]}.xlsx")
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # 读取Excel
-        wb = load_workbook(temp_path, read_only=True)
-        ws = wb.active
-
-        rows_iter = ws.iter_rows(min_row=1, values_only=True)
-        all_rows = [[str(cell) if cell is not None else '' for cell in row] for row in rows_iter]
-        wb.close()
-
-        if not all_rows:
-            raise HTTPException(status_code=400, detail="Excel中没有数据")
-
-        # 第一行为列名
-        columns = all_rows[0]
-        data_rows = all_rows[1:]
-
-        # 过滤全空行
-        data_rows = [row for row in data_rows if any(cell.strip() for cell in row)]
-
-        # 转换为字典列表
-        rows = []
-        for row in data_rows:
-            row_dict = {}
-            for i, col in enumerate(columns):
-                row_dict[col] = row[i] if i < len(row) else ''
-            rows.append(row_dict)
-
-        # 获取模板中的变量名
-        template_path = os.path.join(TEMPLATE_DIR, LAWYER_LETTER_TEMPLATE)
-        template_variables = []
-        if os.path.exists(template_path):
-            template_variables = docx_service.extract_template_variables(template_path)
-
-        # 清理临时文件
-        os.remove(temp_path)
-
-        return {
-            "success": True,
-            "columns": columns,
-            "rows": rows,
-            "row_count": len(rows),
-            "template_variables": template_variables
-        }
-
+        return await _do_preview_batch_xlsx(file, doc_type)
     except HTTPException:
         raise
     except Exception as e:
@@ -1100,70 +1141,35 @@ async def preview_lawyer_letter_xlsx(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"读取Excel失败: {str(e)}")
 
 
-@router.post("/batch/generate-lawyer-letters")
-async def generate_lawyer_letters(file: UploadFile = File(...)):
-    """上传律师函数据XLSX，一键批量生成律师函（每份单独一页，合并在一个Word文件中）"""
-    if not file.filename.lower().endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="仅支持.xlsx格式文件")
+@router.post("/batch/generate")
+async def generate_batch(
+    file: UploadFile = File(...),
+    doc_type: str = Form(...)
+):
+    """上传批量数据XLSX，一键批量生成文书（每份单独一页，合并在一个Word文件中）
 
+    doc_type: 文书类型（与 doc_type_map 的 key 对应），如 '律师函'、'证据目录' 等
+    """
     try:
-        from openpyxl import load_workbook
-
-        temp_path = os.path.join(UPLOAD_DIR, f"temp_lawyer_gen_{uuid.uuid4().hex[:8]}.xlsx")
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # 读取Excel
-        wb = load_workbook(temp_path, read_only=True)
-        ws = wb.active
-
-        rows_iter = ws.iter_rows(min_row=1, values_only=True)
-        all_rows = [[str(cell) if cell is not None else '' for cell in row] for row in rows_iter]
-        wb.close()
-
-        if len(all_rows) < 2:
-            raise HTTPException(status_code=400, detail="Excel中没有数据行")
-
-        columns = all_rows[0]
-        data_rows = all_rows[1:]
-        data_rows = [row for row in data_rows if any(cell.strip() for cell in row)]
-
-        # 转换为字典列表
-        rows = []
-        for row in data_rows:
-            row_dict = {}
-            for i, col in enumerate(columns):
-                row_dict[col] = row[i] if i < len(row) else ''
-            rows.append(row_dict)
-
-        if not rows:
-            raise HTTPException(status_code=400, detail="Excel中没有数据行")
-
-        # 模板路径
-        template_path = os.path.join(TEMPLATE_DIR, LAWYER_LETTER_TEMPLATE)
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=400, detail=f"律师函模板不存在: {LAWYER_LETTER_TEMPLATE}")
-
-        # 生成合并的律师函Word文件
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_path = os.path.join(OUTPUT_DIR, f"律师函_批量生成_{timestamp}.docx")
-        docx_service.generate_batch_to_single_docx(template_path, rows, output_path)
-
-        # 清理临时XLSX
-        os.remove(temp_path)
-
-        return FileResponse(
-            output_path,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            filename=f"律师函_批量生成_{timestamp}.docx"
-        )
-
+        return await _do_generate_batch(file, doc_type)
     except HTTPException:
         raise
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"批量生成律师函失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"批量生成文书失败: {str(e)}")
+
+
+# 旧端点兼容重定向（内部直调，不走 FastAPI 参数解析）
+@router.post("/batch/preview-lawyer-letter-xlsx")
+async def preview_lawyer_letter_xlsx_legacy(file: UploadFile = File(...)):
+    """(兼容旧版) 预览律师函批量数据"""
+    return await _do_preview_batch_xlsx(file, "律师函")
+
+@router.post("/batch/generate-lawyer-letters")
+async def generate_lawyer_letters_legacy(file: UploadFile = File(...)):
+    """(兼容旧版) 批量生成律师函"""
+    return await _do_generate_batch(file, "律师函")
 
 
 @router.get("/company/idcard-image")

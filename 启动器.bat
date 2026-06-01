@@ -87,7 +87,7 @@ echo 正在启动服务，请稍候...
 timeout /t 5 /nobreak >nul
 
 :: 检查服务状态
-curl -s http://localhost:8001/api/status >nul 2>&1
+curl -s http://localhost:8002/api/status >nul 2>&1
 if errorlevel 1 (
     echo.
     echo [警告] 后端服务启动可能有问题，请检查窗口
@@ -99,7 +99,7 @@ echo    启动完成！
 echo ========================================
 echo.
 echo   前端地址: http://localhost:3000
-echo   后端地址: http://localhost:8001
+echo   后端地址: http://localhost:8002
 echo.
 echo   关闭此窗口不会停止服务
 echo   如需停止服务，请关闭 "后端服务" 和 "前端服务" 窗口

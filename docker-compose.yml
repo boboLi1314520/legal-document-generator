@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  legal-doc:
+    build: .
+    container_name: legal-doc-generator
+    ports:
+      - "8002:8002"
+    volumes:
+      # 输出文件 - 挂载到宿主机方便查看
+      - ./backend/outputs:/app/backend/outputs
+      # 上传临时文件
+      - ./backend/uploads:/app/backend/uploads
+      # 公司文件汇总（如有）- 可选
+      - ./公司文件汇总:/app/公司文件汇总
+      # 环境变量配置
+      - ./backend/.env:/app/backend/.env:ro
+    restart: unless-stopped

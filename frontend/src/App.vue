@@ -109,8 +109,17 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="批量生成律师函" name="batch_lawyer">
+          <el-tab-pane label="批量生成文书" name="batch_lawyer">
             <div class="batch-lawyer-section">
+              <!-- 文书类型选择 -->
+              <div class="batch-doc-type">
+                <el-form-item label="选择文书类型" label-width="110px">
+                  <el-select v-model="batchDocType" placeholder="请选择文书类型" style="width: 320px;" size="large">
+                    <el-option v-for="opt in docTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+                  </el-select>
+                </el-form-item>
+              </div>
+
               <!-- 上传XLSX区域 -->
               <div class="batch-upload-area">
                 <el-upload
@@ -126,11 +135,11 @@
                 >
                   <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
                   <div class="el-upload__text">
-                    将律师函数据Excel拖到此处，或<em>点击选择文件</em>
+                    将批量数据Excel拖到此处，或<em>点击选择文件</em>
                   </div>
                   <template #tip>
                     <div class="el-upload__tip">
-                      第一行为表头（列名与模板变量对应），每行为一封律师函的数据
+                      第一行为表头（列名与模板变量对应），每行为一份文书的数据
                     </div>
                   </template>
                 </el-upload>
@@ -171,9 +180,9 @@
                     <el-icon><DataAnalysis /></el-icon>
                     数据预览（共{{ xlsxPreviewData.row_count }}条记录）
                   </h4>
-                  <el-button type="success" size="large" @click="batchGenerateLawyerLetters" :loading="batchGenerating">
+                  <el-button type="success" size="large" @click="batchGenerateDocuments" :loading="batchGenerating">
                     <el-icon><Download /></el-icon>
-                    一键生成律师函
+                    一键生成{{ docTypeLabel }}
                   </el-button>
                 </div>
                 <el-table :data="xlsxPreviewData.rows" border stripe size="small" max-height="400" style="width: 100%">
@@ -475,6 +484,13 @@
                   </el-input>
                 </el-form-item>
               </el-col>
+              <el-col :span="8">
+                <el-form-item label="取整保全金额">
+                  <el-input :model-value="guaranteeAmountRounded" disabled>
+                    <template #append>元</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
             </el-row>
           </el-form>
         </div>
@@ -610,6 +626,10 @@
 
         <div class="step-actions">
           <el-button @click="currentStep = 1">上一步</el-button>
+          <el-button type="success" @click="exportCompanyData" :loading="exporting">
+            <el-icon><Download /></el-icon>
+            公司数据
+          </el-button>
           <el-button type="primary" @click="generateDocuments" :loading="generating">
             <el-icon><Download /></el-icon>
             生成选中文书
@@ -699,7 +719,8 @@ const caseData = reactive({
     interest: '',
     penalty_cutoff: '',
     cutoff_date: '',
-    guarantee_amount: ''
+    guarantee_amount: '',
+    guarantee_amount_rounded: ''
   },
   loan_contracts: {
     quota_contracts: [],
@@ -762,6 +783,21 @@ const loanSummary = computed(() => {
   return result
 })
 
+// 计算取整保全金额
+const guaranteeAmountRounded = computed(() => {
+  const amount = parseFloat(caseData.debt_info.guarantee_amount)
+  if (isNaN(amount) || amount === 0) return '0.00'
+  const floorValue = Math.floor(amount / 1000) * 1000
+  const thousandsDigit = Math.floor(floorValue / 1000) % 10
+  let result
+  if (thousandsDigit < 5) {
+    result = Math.floor(floorValue / 10000) * 10000
+  } else {
+    result = floorValue
+  }
+  return result.toFixed(2)
+})
+
 // 选中要生成的文书 - 默认全选
 const selectedDocs = ref([
   '起诉状-清算责任纠纷',
@@ -784,6 +820,7 @@ const selectedDocs = ref([
 // 生成状态
 const generating = ref(false)
 const generatedFiles = ref([])
+const exporting = ref(false)
 
 // 批量生成律师函相关
 const xlsxUploadRef = ref(null)
@@ -796,6 +833,29 @@ const xlsxPreviewData = reactive({
 const templateVariables = ref([])
 const previewingXlsx = ref(false)
 const batchGenerating = ref(false)
+const batchDocType = ref('律师函')
+
+// 批量生成支持的文书类型（排除起诉状两种变体）
+const docTypeOptions = [
+  { label: '律师函', value: '律师函' },
+  { label: '证据目录', value: '证据目录' },
+  { label: '保函', value: '保函' },
+  { label: '保全申请书', value: '保全申请书' },
+  { label: '法律文书送达地址确认书', value: '法律文书送达地址确认' },
+  { label: '诉讼授权委托书', value: '诉讼授权委托书' },
+  { label: '诉讼文书送达地址确认书', value: '诉讼文书送达地址确认' },
+  { label: '公函', value: '公函' },
+  { label: '诉讼费退费账号确认书', value: '诉讼费退费账号' },
+  { label: '网络查控申请书', value: '网络查控申请书' },
+  { label: '执行款收款账户确认书', value: '执行款收款账户' },
+  { label: '执行授权委托书', value: '执行授权委托书' },
+  { label: '执行申请书', value: '执行申请书' }
+]
+
+const docTypeLabel = computed(() => {
+  const opt = docTypeOptions.find(o => o.value === batchDocType.value)
+  return opt ? opt.label : '文书'
+})
 
 // 文件类型映射
 const FILE_TYPE_MAP = {
@@ -1062,7 +1122,7 @@ function clearXlsxFile() {
   templateVariables.value = []
 }
 
-// 批量生成律师函 - 预览XLSX数据
+// 批量生成文书 - 预览XLSX数据
 async function previewXlsx() {
   if (xlsxFileList.value.length === 0) {
     ElMessage.warning('请先选择XLSX文件')
@@ -1072,13 +1132,12 @@ async function previewXlsx() {
   previewingXlsx.value = true
   try {
     const file = xlsxFileList.value[0].raw
-    const response = await fetch('/api/batch/preview-lawyer-letter-xlsx', {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('doc_type', batchDocType.value)
+    const response = await fetch('/api/batch/preview-xlsx', {
       method: 'POST',
-      body: (() => {
-        const fd = new FormData()
-        fd.append('file', file)
-        return fd
-      })()
+      body: fd
     })
 
     const result = await response.json()
@@ -1099,8 +1158,8 @@ async function previewXlsx() {
   }
 }
 
-// 批量生成律师函 - 一键生成
-async function batchGenerateLawyerLetters() {
+// 批量生成文书 - 一键生成
+async function batchGenerateDocuments() {
   if (xlsxFileList.value.length === 0) {
     ElMessage.warning('请先选择XLSX文件')
     return
@@ -1114,20 +1173,19 @@ async function batchGenerateLawyerLetters() {
   batchGenerating.value = true
   try {
     const file = xlsxFileList.value[0].raw
-    const response = await fetch('/api/batch/generate-lawyer-letters', {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('doc_type', batchDocType.value)
+    const response = await fetch('/api/batch/generate', {
       method: 'POST',
-      body: (() => {
-        const fd = new FormData()
-        fd.append('file', file)
-        return fd
-      })()
+      body: fd
     })
 
     if (response.ok) {
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const contentDisposition = response.headers.get('content-disposition')
-      let filename = '律师函_批量生成.docx'
+      let filename = '批量生成文书.docx'
       if (contentDisposition) {
         const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?(.+)/i)
         if (match) filename = decodeURIComponent(match[1])
@@ -1139,7 +1197,7 @@ async function batchGenerateLawyerLetters() {
       link.click()
       window.URL.revokeObjectURL(url)
 
-      ElMessage.success(`成功生成 ${xlsxPreviewData.row_count} 份律师函`)
+      ElMessage.success(`成功生成 ${xlsxPreviewData.row_count} 份文书`)
     } else {
       throw new Error('生成失败')
     }
@@ -1147,6 +1205,41 @@ async function batchGenerateLawyerLetters() {
     ElMessage.error('生成失败: ' + error.message)
   } finally {
     batchGenerating.value = false
+  }
+}
+
+// 导出公司数据Excel
+async function exportCompanyData() {
+  exporting.value = true
+  try {
+    const response = await fetch(`/api/company/${caseData.id}/export`, {
+      method: 'POST'
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const contentDisposition = response.headers.get('content-disposition')
+      let filename = `database_element_${caseData.company_info.target_company || caseData.id}.xlsx`
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?(.+)/i)
+        if (match) filename = decodeURIComponent(match[1])
+      }
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      window.URL.revokeObjectURL(url)
+
+      ElMessage.success('公司数据Excel已下载')
+    } else {
+      throw new Error('导出失败')
+    }
+  } catch (error) {
+    ElMessage.error('导出失败: ' + error.message)
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -1566,6 +1659,14 @@ body {
 /* 批量生成律师函样式 */
 .batch-lawyer-section {
   padding: 4px 0;
+}
+
+.batch-doc-type {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: #f0f4ff;
+  border-radius: 12px;
+  border: 1px solid #dce3f0;
 }
 
 .batch-upload-area {

@@ -1,0 +1,33 @@
+# Node.js
+frontend/node_modules/
+frontend/.vite/
+
+# Python
+backend/__pycache__/
+backend/app/**/__pycache__/
+*.pyc
+*.pyo
+backend/.venv/
+backend/venv/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Git
+.git/
+.gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+backend/uploads/*
+backend/outputs/*
+!backend/uploads/.gitkeep
+!backend/outputs/.gitkeep
+
+# Environment (handled by volume mount)
+# backend/.env

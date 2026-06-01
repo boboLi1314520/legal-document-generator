@@ -137,6 +137,11 @@ class CaseData(BaseModel):
         if not self.debt_info.guarantee_amount:
             self.debt_info.guarantee_amount = guarantee
 
+        # 计算取整保全金额
+        guarantee_rounded = self.debt_info.calculate_guarantee_amount_rounded()
+        if not self.debt_info.guarantee_amount_rounded:
+            self.debt_info.guarantee_amount_rounded = guarantee_rounded
+
         # 推荐法院
         court = self.case_info.court_name
         if not court and def1.def_addr:
@@ -250,6 +255,8 @@ class CaseData(BaseModel):
             "loan_total": self.debt_info.loan_total or "【贷款本金】",
             "guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",
             " guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",  # 带空格版本
+            "guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
+            " guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             # 合同信息 - 固定变量（兼容旧模板）
             "loan_quota_date1": quota_dates[0] if len(quota_dates) > 0 else "【额度合同日期1】",
             "loan_quota_date2": quota_dates[1] if len(quota_dates) > 1 else "【额度合同日期2】",

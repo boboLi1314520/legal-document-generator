@@ -375,21 +375,20 @@ class DocxService:
         if not os.path.exists(template_path):
             raise FileNotFoundError(f"模板文件不存在: {template_path}")
 
-        master_doc = Document()
+        if not data_rows:
+            raise ValueError("没有数据行")
 
-        for idx, variables in enumerate(data_rows):
-            # 从模板生成临时文档
+        # 第一条记录：直接用模板作为主文档（保留模板的样式、字体、页面设置）
+        master_doc = Document(template_path)
+        self._replace_all_in_doc(master_doc, data_rows[0])
+
+        # 后续记录：从模板创建临时文档，替换变量后复制到主文档
+        for idx in range(1, len(data_rows)):
+            # 先添加分页符（分隔上一份文书）
+            master_doc.add_page_break()
             temp_doc = Document(template_path)
-
-            # 替换临时文档中的变量
-            self._replace_all_in_doc(temp_doc, variables)
-
-            # 将临时文档的所有元素复制到主文档
+            self._replace_all_in_doc(temp_doc, data_rows[idx])
             self._copy_doc_elements(temp_doc, master_doc)
-
-            # 除最后一条外，添加分页符
-            if idx < len(data_rows) - 1:
-                master_doc.add_page_break()
 
         master_doc.save(output_path)
         return output_path
@@ -459,7 +458,7 @@ class DocxService:
                 target_pPr.append(copy.deepcopy(child))
 
     def _copy_run_format(self, source_run, target_run):
-        """复制run的格式"""
+        """复制run的格式（含中文字体）"""
         if source_run.font.name:
             target_run.font.name = source_run.font.name
         if source_run.font.size:
@@ -472,16 +471,29 @@ class DocxService:
             target_run.font.underline = source_run.font.underline
         if source_run.font.color and source_run.font.color.rgb:
             target_run.font.color.rgb = source_run.font.color.rgb
-        # 复制中文字体
+
+        # 复制 XML 级 run 属性，完整保留 w:rFonts（含 w:eastAsia 宋体等）
         try:
             rPr_source = source_run._element.find(qn('w:rPr'))
             if rPr_source is not None:
                 rPr_target = target_run._element.get_or_add_rPr()
+
                 for child in list(rPr_source):
                     tag = child.tag
-                    # 跳过已通过python-docx API设置的基本属性
-                    if tag in (qn('w:rFonts'), qn('w:b'), qn('w:i'), qn('w:u'), qn('w:sz'), qn('w:color')):
+                    # 跳过已通过 python-docx API 精确设置的属性
+                    if tag in (qn('w:b'), qn('w:i'), qn('w:u'), qn('w:sz'), qn('w:color')):
                         continue
+                    # w:rFonts 特殊处理：合并属性，保留 eastAsia 等
+                    if tag == qn('w:rFonts'):
+                        existing_fonts = rPr_target.find(qn('w:rFonts'))
+                        if existing_fonts is not None:
+                            # 将源 rFonts 的属性合并到目标 rFonts
+                            for attr_name, attr_value in child.attrib.items():
+                                existing_fonts.set(attr_name, attr_value)
+                        else:
+                            rPr_target.append(copy.deepcopy(child))
+                        continue
+                    # 其他属性：替换式复制
                     existing = rPr_target.findall(tag)
                     for ex in existing:
                         rPr_target.remove(ex)
