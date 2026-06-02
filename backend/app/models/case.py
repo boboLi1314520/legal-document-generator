@@ -248,6 +248,8 @@ class CaseData(BaseModel):
             # 动态合同变量（新模板使用）
             "quota_dates_text": quota_dates_text,
             "loan_dates_text": loan_dates_text,
+            "loan_quota_date": quota_dates_text,
+            "loan_contract_date": loan_dates_text,
             "penalty_text": penalty_text,
             "loan_contract_proof": loan_contract_proof,
             "loan_flow_proof": loan_flow_proof,
