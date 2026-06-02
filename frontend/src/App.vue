@@ -37,8 +37,7 @@
             </div>
 
             <el-table :data="folders" v-loading="loadingFolders" highlight-current-row class="folder-table">
-              <el-table-column prop="id" label="编号" width="150" />
-              <el-table-column prop="name" label="公司名称" min-width="250" />
+              <el-table-column prop="name" label="公司名称" min-width="100" />
               <el-table-column prop="file_count" label="文件数" width="80" align="center" />
               <el-table-column label="文件类型" min-width="300">
                 <template #default="{ row }">
