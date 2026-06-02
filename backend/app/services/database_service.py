@@ -53,6 +53,12 @@ class DatabaseService:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
+            # 兼容存量数据：格式化注册资本
+            if data.get("company_info", {}).get("company_capital"):
+                data["company_info"]["company_capital"] = CompanyInfo.format_capital(
+                    data["company_info"]["company_capital"]
+                )
+
             return CaseData(**data)
         except Exception as e:
             print(f"加载案件数据失败: {e}")
@@ -126,6 +132,12 @@ class DatabaseService:
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+
+            # 兼容存量数据：格式化注册资本
+            if data.get("company_info", {}).get("company_capital"):
+                data["company_info"]["company_capital"] = CompanyInfo.format_capital(
+                    data["company_info"]["company_capital"]
+                )
 
             case_data = CaseData(**data)
             self.save_case(case_data)

@@ -445,7 +445,7 @@ async def process_company_folder(folder_path: str) -> CaseData:
                     if public_info.get("target_company"):
                         case_data.company_info.target_company = public_info["target_company"]
                     if public_info.get("company_capital"):
-                        case_data.company_info.company_capital = public_info["company_capital"]
+                        case_data.company_info.company_capital = CompanyInfo.format_capital(public_info["company_capital"])
                     if public_info.get("company_establish"):
                         case_data.company_info.company_establish = public_info["company_establish"]
                     if public_info.get("company_addr"):

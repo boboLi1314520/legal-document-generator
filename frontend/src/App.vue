@@ -400,6 +400,11 @@
                   <el-input v-model="row.principal" size="small" />
                 </template>
               </el-table-column>
+              <el-table-column prop="total_principal" label="欠款总本金" width="120">
+                <template #default="{ row }">
+                  <el-input v-model="row.total_principal" size="small" />
+                </template>
+              </el-table-column>
               <el-table-column prop="rate" label="利率" width="90">
                 <template #default="{ row }">
                   <el-input v-model="row.rate" size="small" />
@@ -425,7 +430,7 @@
             </div>
             <el-table :data="loanSummary" size="small" border>
               <el-table-column type="index" label="序号" width="60" />
-              <el-table-column prop="principal" label="本金合计" width="120">
+              <el-table-column prop="principal" label="欠款总本金合计" width="140">
                 <template #default="{ row }">
                   {{ row.principal }}元
                 </template>
@@ -546,7 +551,7 @@
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="金额计算表页数">
+                <el-form-item label="金额计算表页数" label-width="110px">
                   <el-input v-model="caseData.case_info.page_number3" placeholder="手动填写" />
                 </el-form-item>
               </el-col>
@@ -769,7 +774,7 @@ const loanSummary = computed(() => {
         count: 0
       }
     }
-    groups[key].principal += parseFloat(loan.principal) || 0
+    groups[key].principal += parseFloat(loan.total_principal || loan.principal) || 0
     groups[key].count += 1
   }
   // 格式化本金

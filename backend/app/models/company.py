@@ -39,3 +39,18 @@ class CompanyInfo(BaseModel):
                 "subscribe_date": "2025年01月15日"
             }
         }
+
+    @staticmethod
+    def format_capital(capital: str) -> str:
+        """格式化注册资本：整数去小数点，非0小数保留2位"""
+        if not capital:
+            return capital
+        try:
+            num_str = capital.replace("万元", "").replace("万", "").replace("元", "").replace(",", "").strip()
+            capital_num = float(num_str)
+            if capital_num == int(capital_num):
+                return f"{int(capital_num)}万元"
+            else:
+                return f"{capital_num:.2f}万元"
+        except (ValueError, AttributeError):
+            return capital

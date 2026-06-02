@@ -437,7 +437,7 @@ class ExtractorService:
 
                 if company_info:
                     case_data.company_info.target_company = company_info.get("target_company", "")
-                    case_data.company_info.company_capital = company_info.get("company_capital", "")
+                    case_data.company_info.company_capital = CompanyInfo.format_capital(company_info.get("company_capital", ""))
                     case_data.company_info.company_establish = company_info.get("company_establish", "")
                     case_data.company_info.company_addr = company_info.get("company_addr", "")
                     case_data.company_info.company_reg = company_info.get("company_reg", "")

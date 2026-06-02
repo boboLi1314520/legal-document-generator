@@ -268,14 +268,32 @@ class DocxService:
             # 带空格格式: { variable } (模板中可能存在的格式问题)
             placeholder_with_space = "{ " + key + "}"
 
+            # 空值时，先移除相邻的分隔符（、，,）
+            if not value:
+                escaped_key = re.escape(key)
+                # 分隔符 + {key} → 移除整个"、{key}"
+                new_text = re.sub(rf'[、，,]\s*\{{\s*{escaped_key}\s*\}}', '', new_text)
+                # {key} + 分隔符 → 移除整个"{key}、"
+                new_text = re.sub(rf'\{{\s*{escaped_key}\s*\}}\s*[、，,]', '', new_text)
+
             # 替换值
-            replace_value = str(value) if value else f"【{key}】"
+            replace_value = str(value) if value else ""
 
             # 替换两种格式
             if placeholder in new_text:
                 new_text = new_text.replace(placeholder, replace_value)
             if placeholder_with_space in new_text:
                 new_text = new_text.replace(placeholder_with_space, replace_value)
+
+        # 清理所有未替换的占位符及其相邻分隔符
+        # 分隔符 + {anything} → 删除
+        new_text = re.sub(r'[、，,]\s*\{[^{}]*\}', '', new_text)
+        # {anything} + 分隔符 → 删除
+        new_text = re.sub(r'\{[^{}]*\}\s*[、，,]', '', new_text)
+        # 孤立的{anything} → 删除
+        new_text = re.sub(r'\{[^{}]*\}', '', new_text)
+        # 清理可能残留的连续分隔符（如"、、" → 删除）
+        new_text = re.sub(r'[、，,]\s*[、，,]', '', new_text)
 
         # 如果文本有变化，替换段落内容
         if new_text != full_text:

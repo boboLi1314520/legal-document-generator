@@ -107,12 +107,12 @@ class CaseData(BaseModel):
             if key not in loan_summary:
                 loan_summary[key] = {
                     "principal": 0,
-                    "rate": loan.rate,
+                    "rate": loan.standard_penalty_rate or "24.00%",
                     "penalty_rate": loan.penalty_rate,
                     "standard_penalty_rate": loan.standard_penalty_rate,
                     "count": 0
                 }
-            loan_summary[key]["principal"] += float(loan.principal or 0)
+            loan_summary[key]["principal"] += float(loan.total_principal or loan.principal or 0)
             loan_summary[key]["count"] += 1
 
         # 转换为列表并格式化
@@ -126,11 +126,6 @@ class CaseData(BaseModel):
                 "standard_penalty_rate": data["standard_penalty_rate"],
                 "count": data["count"]
             })
-
-        # 获取借款合同信息
-        loan1 = self.loan_contracts.loan_contracts[0] if len(self.loan_contracts.loan_contracts) > 0 else None
-        loan2 = self.loan_contracts.loan_contracts[1] if len(self.loan_contracts.loan_contracts) > 1 else None
-        loan3 = self.loan_contracts.loan_contracts[2] if len(self.loan_contracts.loan_contracts) > 2 else None
 
         # 计算保全金额
         guarantee = self.debt_info.calculate_guarantee_amount()
@@ -153,18 +148,8 @@ class CaseData(BaseModel):
         today = datetime.now()
         date_str = today.strftime("%Y年%m月%d日")
 
-        # 格式化注册资本（整数不保留小数）
-        capital = self.company_info.company_capital
-        if capital:
-            try:
-                capital_num = float(capital.replace("万元", "").replace("元", "").replace(",", ""))
-                # 判断是否为整数
-                if capital_num == int(capital_num):
-                    capital = f"{int(capital_num)}万元"
-                else:
-                    capital = f"{capital_num}万元"
-            except (ValueError, AttributeError):
-                pass
+        # 格式化注册资本
+        capital = CompanyInfo.format_capital(self.company_info.company_capital)
 
         # 构建额度合同日期文本（动态数量）
         quota_dates_text = "、".join(quota_dates) if quota_dates else "【额度合同日期】"
@@ -214,7 +199,7 @@ class CaseData(BaseModel):
         penalty_vars = {}
         for i, item in enumerate(loan_summary_list, 1):
             penalty_vars[f"principal{i}"] = item["principal"]
-            penalty_vars[f"principal_rate{i}"] = item["rate"]
+            penalty_vars[f"principal_rate{i}"] = item["standard_penalty_rate"]
             penalty_vars[f"penalty_cutoff{i}"] = item["standard_penalty_rate"]
 
         return {
@@ -258,20 +243,8 @@ class CaseData(BaseModel):
             "guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             " guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             # 合同信息 - 固定变量（兼容旧模板）
-            "loan_quota_date1": quota_dates[0] if len(quota_dates) > 0 else "【额度合同日期1】",
-            "loan_quota_date2": quota_dates[1] if len(quota_dates) > 1 else "【额度合同日期2】",
             "loan_quota_num": str(self.loan_contracts.quota_count) or "0",
             "loan_contract_num": str(self.loan_contracts.loan_count) or "0",
-            "loan_contract_date1": loan_dates[0] if len(loan_dates) > 0 else "【合同日期1】",
-            "loan_contract_date2": loan_dates[1] if len(loan_dates) > 1 else "【合同日期2】",
-            "principal1": loan1.principal if loan1 else "【本金1】",
-            "principal2": loan2.principal if loan2 else "【本金2】",
-            "principal3": loan3.principal if loan3 else "【本金3】",
-            "principal_rate1": loan1.rate if loan1 else "【利率1】",
-            "principal_rate2": loan2.rate if loan2 else "【利率2】",
-            "principal_rate3": loan3.rate if loan3 else "【利率3】",
-            "penalty_cutoff1": loan1.standard_penalty_rate if loan1 else "【罚息利率1】",
-            "penalty_cutoff2": loan2.standard_penalty_rate if loan2 else "【罚息利率2】",
             # 动态合同变量（新模板使用）
             "quota_dates_text": quota_dates_text,
             "loan_dates_text": loan_dates_text,

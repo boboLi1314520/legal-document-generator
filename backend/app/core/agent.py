@@ -8,6 +8,7 @@ import re
 import base64
 from typing import Optional, Dict, List
 from dotenv import load_dotenv
+from ..models.company import CompanyInfo
 
 load_dotenv()
 
@@ -342,7 +343,7 @@ class LegalAgent:
             elif re.search(r'\d+\.?\d*万', line) and not result["company_capital"]:
                 capital_match = re.search(r'([\d\.]+万)', line)
                 if capital_match:
-                    result["company_capital"] = capital_match.group(1)
+                    result["company_capital"] = CompanyInfo.format_capital(capital_match.group(1))
                     print(f"[公示解析] 注册资本: {result['company_capital']}")
 
             # 登记机关（包含"市场监督"或"管理局"）
@@ -395,7 +396,7 @@ class LegalAgent:
                 if "注册资本" in line or ("万" in line and re.search(r'\d+\.?\d*万', line)):
                     match = re.search(r'([\d\.]+万)', line)
                     if match:
-                        result["company_capital"] = match.group(1)
+                        result["company_capital"] = CompanyInfo.format_capital(match.group(1))
 
             # 成立日期 - 如果上面没找到
             if not result["company_establish"] and "成立日期" in line:
