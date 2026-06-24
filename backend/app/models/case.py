@@ -14,7 +14,7 @@ from .debt import DebtInfo
 
 class CaseInfo(BaseModel):
     """案件信息"""
-    case_reason: Optional[str] = ""  # 案由（清算责任纠纷/损害公司债权人责任纠纷）
+    case_reason: Optional[str] = ""  # 案由（清算责任纠纷/损害公司债权人利益责任纠纷）
     court_name: Optional[str] = ""   # 受理法院名称
     case_number: Optional[str] = ""  # 案号（手动填写）
     judgment_document: Optional[str] = ""  # 判决文书（执行申请书用）
@@ -31,6 +31,16 @@ class LawyerLetterInfo(BaseModel):
     case_number: Optional[str] = "" # 案号
 
 
+class ExecutionInfo(BaseModel):
+    """执行申请书信息（从民事判决书PDF提取）"""
+    judgment_case_number: Optional[str] = ""  # 执行依据判决案号
+    judgment_principal: Optional[str] = ""    # 判决本金
+    judgment_interest: Optional[str] = ""     # 判决利息
+    court_fee: Optional[str] = ""             # 受理费
+    preservation_fee: Optional[str] = ""      # 保全费
+    notice_fee: Optional[str] = ""            # 公告费
+
+
 class CaseData(BaseModel):
     """案件完整数据"""
     id: str = ""                           # 案件唯一标识
@@ -40,6 +50,7 @@ class CaseData(BaseModel):
     debt_info: DebtInfo = DebtInfo()
     case_info: CaseInfo = CaseInfo()
     lawyer_letter_info: LawyerLetterInfo = LawyerLetterInfo()  # 律师函信息
+    execution_info: ExecutionInfo = ExecutionInfo()  # 执行申请书信息
     lawer: Optional[str] = ""              # 律师姓名
     created_at: Optional[str] = ""         # 创建时间
     updated_at: Optional[str] = ""         # 更新时间
@@ -244,6 +255,8 @@ class CaseData(BaseModel):
             " guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",  # 带空格版本
             "guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             " guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
+            "round_off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
+            " round_off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             # 合同信息 - 固定变量（兼容旧模板）
             "loan_quota_num": str(self.loan_contracts.quota_count) or "0",
             "loan_contract_num": str(self.loan_contracts.loan_count) or "0",
@@ -273,6 +286,12 @@ class CaseData(BaseModel):
             "case number": self.case_info.case_number or "【案号】",
             "案号": self.case_info.case_number or "【案号】",
             "judgment document": self.case_info.judgment_document or "【判决文书】",
+            "judgment_case_number": self.execution_info.judgment_case_number or "【执行依据判决案号】",
+            "judgment_principal": self.execution_info.judgment_principal or "【判决本金】",
+            "judgment_interest": self.execution_info.judgment_interest or "【判决利息】",
+            "court_fee": self.execution_info.court_fee or "【受理费】",
+            "preservation_fee": self.execution_info.preservation_fee or "【保全费】",
+            "notice_fee": self.execution_info.notice_fee or "【公告费】",
             "page number1": str(self.case_info.page_number1 or "1"),
             "page number2": str(self.case_info.page_number2 or "2"),
             "page number3": str(self.case_info.page_number3 or "3"),

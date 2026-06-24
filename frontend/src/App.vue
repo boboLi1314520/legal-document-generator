@@ -460,7 +460,7 @@
             <el-row :gutter="20">
               <el-col :span="8">
                 <el-form-item label="贷款本金合计">
-                  <el-input v-model="loanTotalComputed" disabled>
+                  <el-input v-model="caseData.debt_info.loan_total">
                     <template #append>元</template>
                   </el-input>
                 </el-form-item>
@@ -490,14 +490,14 @@
               </el-col>
               <el-col :span="8">
                 <el-form-item label="保全金额">
-                  <el-input v-model="caseData.debt_info.guarantee_amount" disabled>
+                  <el-input v-model="caseData.debt_info.guarantee_amount">
                     <template #append>元</template>
                   </el-input>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
                 <el-form-item label="取整保全金额">
-                  <el-input :model-value="guaranteeAmountRounded" disabled>
+                  <el-input v-model="caseData.debt_info.guarantee_amount_rounded">
                     <template #append>元</template>
                   </el-input>
                 </el-form-item>
@@ -509,13 +509,13 @@
         <!-- 案件信息 -->
         <div class="section-block">
           <div class="section-title"><el-icon><Briefcase /></el-icon> 案件信息</div>
-          <el-form :model="caseData.case_info" label-width="100px">
+          <el-form :model="caseData.case_info" label-width="130px">
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="案由">
                   <el-select v-model="caseData.case_info.case_reason" style="width: 100%">
                     <el-option label="清算责任纠纷" value="清算责任纠纷" />
-                    <el-option label="损害公司债权人责任纠纷" value="损害公司债权人责任纠纷" />
+                    <el-option label="损害公司债权人利益责任纠纷" value="损害公司债权人利益责任纠纷" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -527,38 +527,61 @@
             </el-row>
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="案号">
-                  <el-input v-model="caseData.case_info.case_number" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
                 <el-form-item label="委托律师">
                   <el-input v-model="caseData.lawer" placeholder="手动填写" />
                 </el-form-item>
               </el-col>
             </el-row>
+          </el-form>
+        </div>
+
+        <!-- 执行申请书信息 -->
+        <div class="section-block">
+          <div class="section-title"><el-icon><FolderOpened /></el-icon> 执行申请书信息</div>
+          <el-form :model="caseData.execution_info" label-width="130px">
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="判决文书">
-                  <el-input v-model="caseData.case_info.judgment_document" placeholder="执行申请书用，手动填写" />
+                <el-form-item label="执行依据判决案号">
+                  <el-input v-model="caseData.execution_info.judgment_case_number" placeholder="自动从判决书提取" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="判决本金">
+                  <el-input v-model="caseData.execution_info.judgment_principal" placeholder="手动填写">
+                    <template #append>元</template>
+                  </el-input>
                 </el-form-item>
               </el-col>
             </el-row>
-            <el-divider content-position="left">证据目录页码</el-divider>
             <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="放款流水页数">
-                  <el-input v-model="caseData.case_info.page_number1" placeholder="手动填写" />
+              <el-col :span="12">
+                <el-form-item label="判决利息">
+                  <el-input v-model="caseData.execution_info.judgment_interest" placeholder="手动填写">
+                    <template #append>元</template>
+                  </el-input>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <el-form-item label="还款流水页数">
-                  <el-input v-model="caseData.case_info.page_number2" placeholder="手动填写" />
+              <el-col :span="12">
+                <el-form-item label="受理费">
+                  <el-input v-model="caseData.execution_info.court_fee" placeholder="手动填写">
+                    <template #append>元</template>
+                  </el-input>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <el-form-item label="金额计算表页数" label-width="110px">
-                  <el-input v-model="caseData.case_info.page_number3" placeholder="手动填写" />
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="保全费">
+                  <el-input v-model="caseData.execution_info.preservation_fee" placeholder="手动填写">
+                    <template #append>元</template>
+                  </el-input>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="公告费">
+                  <el-input v-model="caseData.execution_info.notice_fee" placeholder="手动填写">
+                    <template #append>元</template>
+                  </el-input>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -585,13 +608,37 @@
             </el-row>
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="案号">
+                <el-form-item label="仲裁案号">
                   <el-input v-model="caseData.lawyer_letter_info.case_number" placeholder="手动填写" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="日期">
                   <el-input v-model="caseData.lawyer_letter_info.date" placeholder="如：2026年05月06日" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </div>
+
+        <!-- 证据目录页码 -->
+        <div class="section-block">
+          <div class="section-title"><el-icon><Document /></el-icon> 证据目录页码</div>
+          <el-form :model="caseData.case_info" label-width="100px">
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-form-item label="放款流水页数">
+                  <el-input v-model="caseData.case_info.page_number1" placeholder="手动填写" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="还款流水页数">
+                  <el-input v-model="caseData.case_info.page_number2" placeholder="手动填写" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="金额计算表页数" label-width="110px">
+                  <el-input v-model="caseData.case_info.page_number3" placeholder="手动填写" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -618,21 +665,9 @@
         </template>
 
         <el-checkbox-group v-model="selectedDocs" class="doc-checkbox-group">
-          <el-checkbox label="起诉状-清算责任纠纷" />
-          <el-checkbox label="起诉状-损害公司债权人责任纠纷" />
-          <el-checkbox label="证据目录" />
-          <el-checkbox label="保函" />
-          <el-checkbox label="保全申请书" />
-          <el-checkbox label="法律文书送达地址确认" />
-          <el-checkbox label="诉讼授权委托书" />
-          <el-checkbox label="诉讼文书送达地址确认" />
-          <el-checkbox label="公函" />
-          <el-checkbox label="诉讼费退费账号" />
-          <el-checkbox label="网络查控申请书" />
-          <el-checkbox label="执行款收款账户" />
-          <el-checkbox label="执行授权委托书" />
-          <el-checkbox label="执行申请书" />
-          <el-checkbox label="律师函" />
+          <el-checkbox v-for="opt in docCheckboxOptions" :key="opt.value" :label="opt.value">
+            {{ opt.label }}
+          </el-checkbox>
         </el-checkbox-group>
 
         <div class="step-actions">
@@ -678,7 +713,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import AIAssistant from './components/AIAssistant.vue'
 
@@ -755,6 +790,14 @@ const caseData = reactive({
     amount: '',
     case_number: '',
     date: ''
+  },
+  execution_info: {
+    judgment_case_number: '',
+    judgment_principal: '',
+    judgment_interest: '',
+    court_fee: '',
+    preservation_fee: '',
+    notice_fee: ''
   }
 })
 
@@ -811,24 +854,60 @@ const guaranteeAmountRounded = computed(() => {
   return result.toFixed(2)
 })
 
-// 选中要生成的文书 - 默认全选
-const selectedDocs = ref([
-  '起诉状-清算责任纠纷',
-  '起诉状-损害公司债权人责任纠纷',
-  '证据目录',
-  '保函',
-  '保全申请书',
-  '法律文书送达地址确认',
-  '诉讼授权委托书',
-  '诉讼文书送达地址确认',
-  '公函',
-  '诉讼费退费账号',
-  '网络查控申请书',
-  '执行款收款账户',
-  '执行授权委托书',
-  '执行申请书',
-  '律师函'
-])
+// 保全金额变化时自动计算取整保全金额（用户可手动修改）
+watch(() => caseData.debt_info.guarantee_amount, (newVal) => {
+  if (newVal && !isNaN(parseFloat(newVal))) {
+    caseData.debt_info.guarantee_amount_rounded = guaranteeAmountRounded.value
+  }
+})
+
+// 所有可选的文书类型（根据案由动态确定起诉状选项）
+const docCheckboxOptions = computed(() => {
+  const options = [
+    { label: '证据目录', value: '证据目录' },
+    { label: '保函', value: '保函' },
+    { label: '保全申请书', value: '保全申请书' },
+    { label: '法律文书送达地址确认', value: '法律文书送达地址确认' },
+    { label: '诉讼授权委托书', value: '诉讼授权委托书' },
+    { label: '诉讼文书送达地址确认', value: '诉讼文书送达地址确认' },
+    { label: '公函', value: '公函' },
+    { label: '诉讼费退费账号', value: '诉讼费退费账号' },
+    { label: '网络查控申请书', value: '网络查控申请书' },
+    { label: '执行款收款账户', value: '执行款收款账户' },
+    { label: '执行授权委托书', value: '执行授权委托书' },
+    { label: '执行申请书', value: '执行申请书' },
+    { label: '律师函', value: '律师函' },
+  ]
+  const reason = caseData.case_info.case_reason
+  if (reason) {
+    options.unshift({ label: `起诉状（${reason}）`, value: `起诉状-${reason}` })
+  }
+  return options
+})
+
+// 选中要生成的文书
+const selectedDocs = ref([])
+
+// 初始化选中状态：默认全选（含起诉状）
+function initSelectedDocs() {
+  selectedDocs.value = docCheckboxOptions.value.map(opt => opt.value)
+}
+
+// 案由变更时同步更新选中列表中的起诉状选项
+watch(() => caseData.case_info.case_reason, (newReason, oldReason) => {
+  const oldKey = oldReason ? `起诉状-${oldReason}` : null
+  const newKey = newReason ? `起诉状-${newReason}` : null
+  if (oldKey) {
+    const idx = selectedDocs.value.indexOf(oldKey)
+    if (idx >= 0) selectedDocs.value.splice(idx, 1)
+  }
+  if (newKey && !selectedDocs.value.includes(newKey)) {
+    selectedDocs.value.unshift(newKey)
+  }
+})
+
+// 初始化默认全选
+initSelectedDocs()
 
 // 生成状态
 const generating = ref(false)

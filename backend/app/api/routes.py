@@ -3,6 +3,7 @@ API 路由 - 扩展版
 支持公司文件夹上传、数据抽取、文书生成
 """
 import os
+import re
 import uuid
 import shutil
 import zipfile
@@ -21,7 +22,7 @@ from ..services.extractor_service import ExtractorService
 from ..services.database_service import DatabaseService
 from ..services.ai_service import stream_chat_response, chat_response, analyze_file_content, get_form_field_suggestion, check_form_completeness
 from ..core.agent import LegalAgent
-from ..models.case import CaseData, CompanyInfo, DefendantInfo, DebtInfo, CaseInfo
+from ..models.case import CaseData, CompanyInfo, DefendantInfo, DebtInfo, CaseInfo, ExecutionInfo
 from ..models.loan import LoanContracts
 
 # FastAPI响应
@@ -531,6 +532,32 @@ async def process_company_folder(folder_path: str) -> CaseData:
                     print(f"[身份证] 解析完成: {id_info.get('def_name', '')}")
             break  # 只处理第一个身份证文件
 
+    # 解析民事判决书PDF（提取执行依据判决案号）
+    for filename in os.listdir(folder_path):
+        if "民事判决书" in filename or "判决书" in filename:
+            pdf_path = os.path.join(folder_path, filename)
+            print(f"[判决书] 正在解析: {filename}")
+
+            # 只提取第1页文本
+            try:
+                import fitz
+                doc = fitz.open(pdf_path)
+                pdf_text = doc[0].get_text() if doc.page_count > 0 else ""
+                doc.close()
+            except:
+                pdf_text = pdf_service.extract_text(pdf_path)
+
+            if pdf_text:
+                # 提取案号：匹配类似 （2025）苏0192民初17212号 的格式
+                # 去除空格后匹配
+                cleaned = re.sub(r'\s+', '', pdf_text)
+                match = re.search(r'[（(]\d{4}[）)][\u4e00-\u9fff]+\d+[\u4e00-\u9fff]*\d*号', cleaned)
+                if match:
+                    case_data.execution_info.judgment_case_number = match.group()
+                    print(f"[判决书] 案号: {case_data.execution_info.judgment_case_number}")
+
+            break  # 只处理第一个判决书文件
+
     # 推荐管辖法院
     if case_data.defendants and case_data.defendants[0].def_addr:
         case_data.case_info.court_name = legal_agent.recommend_court(case_data.defendants[0].def_addr)
@@ -637,7 +664,7 @@ async def generate_document(request: DocumentRequest):
         # 生成两份起诉状（两种案由）
         files = []
         for case_data in case_data_list:
-            for case_reason in ["清算责任纠纷", "损害公司债权人责任纠纷"]:
+            for case_reason in ["清算责任纠纷", "损害公司债权人利益责任纠纷"]:
                 case_data.case_info.case_reason = case_reason
                 output_path = os.path.join(OUTPUT_DIR, f"民事起诉状_{case_data.id}_{case_reason[:4]}_{timestamp}.docx")
 
@@ -698,8 +725,8 @@ async def generate_selected(request: SelectedDocumentsRequest):
     # 文书类型映射 - 支持所有15个模板
     doc_type_map = {
         # 民事起诉状（两种案由）
-        "起诉状-清算责任纠纷": ("1-民事起诉状模板.docx", "起诉状_清算责任纠纷", True),
-        "起诉状-损害公司债权人责任纠纷": ("1-民事起诉状模板.docx", "起诉状_损害公司债权人责任纠纷", True),
+        "起诉状-清算责任纠纷": ("1-民事起诉状-清算责任纠纷模板.docx", "起诉状_清算责任纠纷", True),
+        "起诉状-损害公司债权人利益责任纠纷": ("1-民事起诉状-损害公司债权人利益责任纠纷模板.docx", "起诉状_损害公司债权人利益责任纠纷", True),
         # 其他文书
         "证据目录": ("2-证据目录模板.docx", "证据目录", False),
         "保函": ("3-保函模板.docx", "保函", False),
@@ -720,14 +747,13 @@ async def generate_selected(request: SelectedDocumentsRequest):
         for doc_type in request.doc_types:
             if doc_type not in doc_type_map:
                 continue
-
             template_file, output_name, is_complaint = doc_type_map[doc_type]
 
             # 设置案由
             if is_complaint and "清算责任" in doc_type:
                 case_data.case_info.case_reason = "清算责任纠纷"
             elif is_complaint and "损害公司债权人" in doc_type:
-                case_data.case_info.case_reason = "损害公司债权人责任纠纷"
+                case_data.case_info.case_reason = "损害公司债权人利益责任纠纷"
 
             # 生成文书
             template_path = os.path.join(TEMPLATE_DIR, template_file)
@@ -773,17 +799,15 @@ async def generate_all(case_ids: List[str] = Form(...)):
     for case_data in case_data_list:
         company_name = case_data.company_info.target_company or case_data.id
 
-        # 生成起诉状（两种案由）
-        for case_reason in ["清算责任纠纷", "损害公司债权人责任纠纷"]:
-            case_data.case_info.case_reason = case_reason
+        # 生成起诉状（根据案由选择对应模板）
+        case_reason = case_data.case_info.case_reason or "清算责任纠纷"
+        template_name = "1-民事起诉状-清算责任纠纷模板.docx" if "清算责任" in case_reason else "1-民事起诉状-损害公司债权人利益责任纠纷模板.docx"
+        template_path = os.path.join(TEMPLATE_DIR, template_name)
+        if os.path.exists(template_path):
             vars = case_data.to_template_vars()
-
-            # 起诉状
-            template_path = os.path.join(TEMPLATE_DIR, "1-民事起诉状模板.docx")
-            if os.path.exists(template_path):
-                output_path = os.path.join(OUTPUT_DIR, f"民事起诉状-{case_reason[:4]}-{company_name}.docx")
-                docx_service.generate_from_template(template_path, vars, output_path)
-                files.append(output_path)
+            output_path = os.path.join(OUTPUT_DIR, f"民事起诉状-{case_reason[:4]}-{company_name}.docx")
+            docx_service.generate_from_template(template_path, vars, output_path)
+            files.append(output_path)
 
         # 证据目录
         template_path = os.path.join(TEMPLATE_DIR, "2-证据目录模板.docx")
