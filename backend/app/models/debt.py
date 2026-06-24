@@ -12,6 +12,8 @@ class DebtInfo(BaseModel):
     interest: Optional[str] = ""            # 利息
     penalty_cutoff: Optional[str] = ""      # 截止日罚息
     cutoff_date: Optional[str] = ""         # 截止日期
+    end_date: Optional[str] = ""            # 截止日期(模板变量)
+    start_date: Optional[str] = ""          # 截止日期+1天(模板变量)
     guarantee_amount: Optional[str] = ""           # 保全金额(本金+利息+罚息)
     guarantee_amount_rounded: Optional[str] = ""    # 取整保全金额
 
@@ -23,6 +25,8 @@ class DebtInfo(BaseModel):
                 "interest": "20659.12",
                 "penalty_cutoff": "12469.60",
                 "cutoff_date": "2026年03月03日",
+                "end_date": "2026年3月3日",
+                "start_date": "2026年3月4日",
                 "guarantee_amount": "296938.24",
                 "guarantee_amount_rounded": "290000.00"
             }

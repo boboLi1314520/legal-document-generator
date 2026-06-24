@@ -238,6 +238,8 @@ class CaseData(BaseModel):
             "interest": self.debt_info.interest or "【利息】",
             "penalty_cutoff": self.debt_info.penalty_cutoff or "【罚息】",
             "loan_total": self.debt_info.loan_total or "【贷款本金】",
+            "end_date": self.debt_info.end_date or "【截止日期】",
+            "start_date": self.debt_info.start_date or "【起算日期】",
             "guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",
             " guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",  # 带空格版本
             "guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",

@@ -4,7 +4,7 @@
 import os
 import re
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ..services.pdf_service import PDFService
 from ..models.case import CaseData, CompanyInfo, DefendantInfo, LoanContracts, DebtInfo, CaseInfo
@@ -178,6 +178,15 @@ class ExtractorService:
             result["loan_contracts"] = loan_contracts
             result["debt_info"]["loan_total"] = f"{loan_sum:.2f}"
 
+            # 提取截止日期（从第一个借据的申请日期，H列=索引7）
+            if loan_contracts:
+                first_apply_date = loan_contracts[0].get("apply_date", "")
+                end_date, start_date = self._format_end_dates(first_apply_date)
+                result["debt_info"]["end_date"] = end_date
+                result["debt_info"]["start_date"] = start_date
+                result["debt_info"]["cutoff_date"] = end_date  # 兼容旧字段
+                print(f"[Excel提取] 截止日期: {end_date}, 起算日期: {start_date}")
+
             # 第三部分：提取合同编号和欠款总本金（从详细表格）
             detail_start = None
             for idx in range(len(df)):
@@ -273,6 +282,54 @@ class ExtractorService:
         except (ValueError, AttributeError):
             return "24.00%"  # 默认最高值
 
+    def _format_end_dates(self, apply_date_str: str):
+        """将申请日期转换为end_date和start_date（中国日期格式）
+
+        Args:
+            apply_date_str: Excel中的申请日期，可能是"2026-03-03"、"2026/03/03"或pandas Timestamp格式
+
+        Returns:
+            (end_date, start_date): end_date格式如"2026年3月3日"，start_date为end_date+1天
+        """
+        if not apply_date_str:
+            return "", ""
+
+        try:
+            import pandas as pd
+
+            # 尝试多种格式解析
+            date_obj = None
+            clean_str = str(apply_date_str).strip()
+
+            # 处理pandas Timestamp格式
+            if isinstance(apply_date_str, pd.Timestamp):
+                date_obj = apply_date_str.to_pydatetime()
+            else:
+                # 尝试常见日期格式
+                for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y/%m/%d", "%Y年%m月%d日"]:
+                    try:
+                        date_obj = datetime.strptime(clean_str, fmt)
+                        break
+                    except ValueError:
+                        continue
+
+            if date_obj is None:
+                print(f"[日期转换] 无法解析日期: {apply_date_str}")
+                return "", ""
+
+            # 格式化为中国日期：2026年3月3日
+            end_date = f"{date_obj.year}年{date_obj.month}月{date_obj.day}日"
+
+            # start_date = end_date + 1天
+            next_day = date_obj + timedelta(days=1)
+            start_date = f"{next_day.year}年{next_day.month}月{next_day.day}日"
+
+            return end_date, start_date
+
+        except Exception as e:
+            print(f"[日期转换] 错误: {e}")
+            return "", ""
+
     def process_company_folder(self, folder_path: str, agent=None) -> CaseData:
         """处理公司文件夹，提取所有数据
 
@@ -339,8 +396,11 @@ class ExtractorService:
                 case_data.debt_info.principal = excel_data["debt_info"].get("principal", "")
                 case_data.debt_info.interest = excel_data["debt_info"].get("interest", "")
                 case_data.debt_info.penalty_cutoff = excel_data["debt_info"].get("penalty_cutoff", "")
+                case_data.debt_info.cutoff_date = excel_data["debt_info"].get("cutoff_date", "")
+                case_data.debt_info.end_date = excel_data["debt_info"].get("end_date", "")
+                case_data.debt_info.start_date = excel_data["debt_info"].get("start_date", "")
                 case_data.debt_info.guarantee_amount = excel_data["debt_info"].get("guarantee_amount", "")
-                print(f"[数据填充] 债务信息: 贷款本金合计={case_data.debt_info.loan_total}, 欠付本金={case_data.debt_info.principal}, 利息={case_data.debt_info.interest}")
+                print(f"[数据填充] 债务信息: 贷款本金合计={case_data.debt_info.loan_total}, 欠付本金={case_data.debt_info.principal}, 利息={case_data.debt_info.interest}, 截止日期={case_data.debt_info.end_date}")
 
         # 2. 处理额度合同PDF
         if "quota_contract" in files:

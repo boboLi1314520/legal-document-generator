@@ -452,6 +452,13 @@
           <el-form :model="caseData.debt_info" label-width="120px">
             <el-row :gutter="20">
               <el-col :span="8">
+                <el-form-item label="截止日期">
+                  <el-input v-model="caseData.debt_info.end_date" placeholder="如：2026年3月3日" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="8">
                 <el-form-item label="贷款本金合计">
                   <el-input v-model="loanTotalComputed" disabled>
                     <template #append>元</template>
@@ -723,6 +730,8 @@ const caseData = reactive({
     interest: '',
     penalty_cutoff: '',
     cutoff_date: '',
+    end_date: '',
+    start_date: '',
     guarantee_amount: '',
     guarantee_amount_rounded: ''
   },

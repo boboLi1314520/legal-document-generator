@@ -82,6 +82,7 @@ def build_context_string(context: Optional[Dict[str, Any]]) -> str:
     if context.get("debt_info"):
         debt = context["debt_info"]
         parts.append(f"""债务信息：
+- 截止日期：{debt.get('end_date', '未知')}
 - 贷款本金合计：{debt.get('loan_total', '未知')} 元
 - 欠付本金：{debt.get('principal', '未知')} 元
 - 利息：{debt.get('interest', '未知')} 元
