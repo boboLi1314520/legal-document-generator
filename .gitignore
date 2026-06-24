@@ -9,6 +9,7 @@ ENV/
 # Node
 node_modules/
 dist/
+!frontend/dist/
 *.local
 
 # IDE
@@ -22,6 +23,7 @@ dist/
 uploads/
 outputs/
 *.txt
+!requirements.txt
 
 # 系统文件
 .DS_Store
