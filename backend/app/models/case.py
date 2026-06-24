@@ -102,6 +102,29 @@ class CaseData(BaseModel):
             return self.defendants[index - 1]
         return DefendantInfo()
 
+    def _build_defendant_lines(self, prefix="被告", format_type="full") -> str:
+        """根据实际被告列表动态构建文本块
+
+        Args:
+            prefix: 每行的前缀（如"被告"、"被申请人"）
+            format_type: 格式类型
+                - "full": 完整格式（起诉状、保全申请书使用）
+                - "guarantee": 简要格式（保函使用，仅姓名+身份证号）
+
+        Returns:
+            用换行符拼接的被告文本块
+        """
+        lines = []
+        for d in self.defendants:
+            if format_type == "full":
+                line = f"{prefix}：{d.def_name or ''}，{d.def_gender or ''}，"
+                line += f"{d.def_nation or ''}族，身份证号码：{d.def_id or ''}，"
+                line += f"住址：{d.def_addr or ''}，电话：{d.def_tel or ''}。"
+            elif format_type == "guarantee":
+                line = f"{d.def_name or ''}，身份证号码：{d.def_id or ''}"
+            lines.append(line)
+        return "\n".join(lines)
+
     def to_template_vars(self) -> dict:
         """转换为模板变量字典，用于文书生成"""
         def1 = self.get_defendant_by_index(1)
@@ -230,6 +253,10 @@ class CaseData(BaseModel):
             "def2_addr": def2.def_addr or "【住址】",
             "def2_tel": def2.def_tel or "【电话】",
             "def2_share": def2.def_share or "【持股比例】",
+            # 动态被告文本（根据实际被告数量动态生成，替代硬编码的 def1_/def2_ 段落）
+            "defendants_text": self._build_defendant_lines("被告", "full"),
+            "respondents_text": self._build_defendant_lines("被申请人", "full"),
+            "guarantee_defendants_text": self._build_defendant_lines(format_type="guarantee"),
             # 公司信息
             "target_company": self.company_info.target_company or "【公司名】",
             "company_abbr": self.company_info.company_abbr or "【简称】",
