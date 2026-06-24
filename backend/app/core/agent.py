@@ -239,7 +239,6 @@ class LegalAgent:
         - legal_representative: 法定代表人
         - shareholders: 股东列表 [{name, share}]
         - company_cancel_apply: 核准日期
-        - cancel_doc: 注销文件类型
         """
         if not self.api_key or self.api_key == "your_api_key_here":
             return self._parse_public_report_rules(text)
@@ -255,7 +254,6 @@ class LegalAgent:
 - legal_representative: 法定代表人姓名
 - shareholders: 股东列表，数组格式，每个元素包含 name(股东姓名) 和 share(持股比例)
 - company_cancel_apply: 注销核准日期
-- cancel_doc: 注销时提交的文件类型（"清算报告" 或 "简易注销全体投资人承诺书"）
 - capital_status: 股东出资状态（"未实缴" 或 "已实缴"）
 - subscribe_date: 股东认缴出资日期
 
@@ -288,7 +286,6 @@ class LegalAgent:
             "shareholders": [],
             "company_cancel_apply": "",
             "company_cancel_date": "",
-            "cancel_doc": "",
             "capital_status": "",
             "subscribe_date": ""
         }
@@ -445,10 +442,6 @@ class LegalAgent:
                 if match:
                     result["company_cancel_date"] = match.group(1)
                     print(f"[公示解析] 注销日期: {result['company_cancel_date']}")
-
-            # 简易注销承诺书判断
-            if "简易注销" in line:
-                result["cancel_doc"] = "简易注销全体投资人承诺书"
 
         # 提取股东信息 - 从股东表格区域
         in_shareholder_section = False

@@ -504,7 +504,6 @@ class ExtractorService:
                     case_data.company_info.legal_representative = company_info.get("legal_representative", "")
                     case_data.company_info.company_cancel_apply = company_info.get("company_cancel_apply", "")
                     case_data.company_info.company_cancel_date = company_info.get("company_cancel_date", "")
-                    case_data.company_info.cancel_doc = company_info.get("cancel_doc", "")
                     case_data.company_info.capital_status = company_info.get("capital_status", "")
                     case_data.company_info.subscribe_date = company_info.get("subscribe_date", "")
 

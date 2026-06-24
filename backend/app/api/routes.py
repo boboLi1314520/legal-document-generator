@@ -457,8 +457,6 @@ async def process_company_folder(folder_path: str) -> CaseData:
                         case_data.company_info.legal_representative = public_info["legal_representative"]
                     if public_info.get("company_cancel_apply"):
                         case_data.company_info.company_cancel_apply = public_info["company_cancel_apply"]
-                    if public_info.get("cancel_doc"):
-                        case_data.company_info.cancel_doc = public_info["cancel_doc"]
                     if public_info.get("capital_status"):
                         case_data.company_info.capital_status = public_info["capital_status"]
                     if public_info.get("subscribe_date"):
@@ -743,7 +741,9 @@ async def generate_selected(request: SelectedDocumentsRequest):
         "律师函": ("14-律师函模板.docx", "律师函", False),
     }
 
+    company_name = ""
     for case_data in case_data_list:
+        company_name = case_data.company_info.target_company or case_data.id
         for doc_type in request.doc_types:
             if doc_type not in doc_type_map:
                 continue
@@ -758,9 +758,7 @@ async def generate_selected(request: SelectedDocumentsRequest):
             # 生成文书
             template_path = os.path.join(TEMPLATE_DIR, template_file)
             if os.path.exists(template_path):
-                # 文件名格式：文书名-公司名.docx
-                company_name = case_data.company_info.target_company or case_data.id
-                output_filename = f"{output_name}-{company_name}.docx"
+                output_filename = f"{output_name}.docx"
                 output_path = os.path.join(OUTPUT_DIR, output_filename)
                 docx_service.generate_from_template(template_path, case_data.to_template_vars(), output_path)
                 files.append(output_path)
@@ -768,8 +766,9 @@ async def generate_selected(request: SelectedDocumentsRequest):
     if not files:
         raise HTTPException(status_code=400, detail="没有生成任何文书")
 
-    # 打包为 ZIP
-    zip_path = os.path.join(OUTPUT_DIR, f"法律文书_{timestamp}.zip")
+    # 打包为 ZIP，以公司名命名
+    zip_filename = f"{company_name}.zip" if company_name else f"法律文书_{timestamp}.zip"
+    zip_path = os.path.join(OUTPUT_DIR, zip_filename)
     with zipfile.ZipFile(zip_path, 'w') as zipf:
         for f in files:
             zipf.write(f, os.path.basename(f))
@@ -777,7 +776,7 @@ async def generate_selected(request: SelectedDocumentsRequest):
     return FileResponse(
         zip_path,
         media_type="application/zip",
-        filename=os.path.basename(zip_path)
+        filename=zip_filename
     )
 
 

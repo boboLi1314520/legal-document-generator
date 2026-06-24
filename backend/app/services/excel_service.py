@@ -111,14 +111,14 @@ class ExcelService:
         row += 1
         self._write_headers(ws, row, [
             "企业名称", "公司简称", "法定代表人", "注册资本", "成立日期",
-            "住所", "登记机关", "核准日期", "注销文件", "认缴日期", "出资状态"
+            "住所", "登记机关", "核准日期", "认缴日期", "出资状态"
         ], border)
         row += 1
         self._write_data_row(ws, row, [
             ci.target_company, ci.company_abbr, ci.legal_representative,
             CompanyInfo.format_capital(ci.company_capital),
             ci.company_establish, ci.company_addr, ci.company_reg,
-            ci.company_cancel_apply, ci.cancel_doc, ci.subscribe_date, ci.capital_status
+            ci.company_cancel_apply, ci.subscribe_date, ci.capital_status
         ], border)
         row += 2  # 跳过空行
 

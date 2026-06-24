@@ -17,7 +17,6 @@ class CompanyInfo(BaseModel):
     company_addr: Optional[str] = ""       # 住所
     company_reg: Optional[str] = ""        # 登记机关
     company_id: Optional[str] = ""         # 统一社会信用代码
-    cancel_doc: Optional[str] = ""         # 注销文件类型（清算报告/简易注销全体投资人承诺书）
     capital_status: Optional[str] = ""     # 股东出资状态（未实缴/已实缴）
     subscribe_date: Optional[str] = ""     # 股东认缴出资日期
 
@@ -34,7 +33,6 @@ class CompanyInfo(BaseModel):
                 "company_addr": "湖南省长沙市雨花区XX路XX号",
                 "company_reg": "长沙市雨花区市场监督管理局",
                 "company_id": "91430111053895688C",
-                "cancel_doc": "简易注销全体投资人承诺书",
                 "capital_status": "未实缴",
                 "subscribe_date": "2025年01月15日"
             }

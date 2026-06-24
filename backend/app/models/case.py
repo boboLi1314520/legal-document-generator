@@ -240,7 +240,6 @@ class CaseData(BaseModel):
             "company_cancel_approve": self.company_info.company_cancel_apply or "【核准日期】",
             "company_addr": self.company_info.company_addr or "【住所】",
             "company_reg": self.company_info.company_reg or "【登记机关】",
-            "cancel_doc": self.company_info.cancel_doc or "【注销文件类型】",
             "capital_status": self.company_info.capital_status or "【出资状态】",
             "subscribe_date": self.company_info.subscribe_date or "【认缴日期】",
             "Legal_representative": self.company_info.legal_representative or "【法定代表人】",
@@ -255,8 +254,8 @@ class CaseData(BaseModel):
             " guarantee_amount": self.debt_info.guarantee_amount or guarantee or "【保全金额】",  # 带空格版本
             "guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             " guarantee_amount_rounded": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
-            "round_off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
-            " round_off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
+            "round-off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
+            " round-off_guarantee_amount": self.debt_info.guarantee_amount_rounded or guarantee_rounded or "【取整保全金额】",
             # 合同信息 - 固定变量（兼容旧模板）
             "loan_quota_num": str(self.loan_contracts.quota_count) or "0",
             "loan_contract_num": str(self.loan_contracts.loan_count) or "0",
