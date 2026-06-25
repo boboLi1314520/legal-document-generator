@@ -11,6 +11,8 @@ import os
 import re
 import copy
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+from docx.text.paragraph import Paragraph
 
 
 class DocxService:
@@ -305,17 +307,57 @@ class DocxService:
                 font_size = first_run.font.size
                 font_bold = first_run.font.bold
 
-                # 清空段落
-                para.clear()
+                # 检查是否包含换行符，需要拆分为多个独立段落
+                if "\n" in new_text:
+                    lines = new_text.split("\n")
+                    # 首行缩进2字符 = 字号×2
+                    indent = (font_size * 2) if font_size else Pt(24)
 
-                # 添加新文本，保留格式
-                run = para.add_run(new_text)
-                if font_name:
-                    run.font.name = font_name
-                if font_size:
-                    run.font.size = font_size
-                if font_bold is not None:
-                    run.font.bold = font_bold
+                    # 第一行保留在当前段落
+                    para.clear()
+                    run = para.add_run(lines[0])
+                    if font_name:
+                        run.font.name = font_name
+                    if font_size:
+                        run.font.size = font_size
+                    if font_bold is not None:
+                        run.font.bold = font_bold
+                    para.paragraph_format.first_line_indent = indent
+
+                    # 后续行创建新段落，插入到当前段落后
+                    parent_elem = para._element
+                    for line in lines[1:]:
+                        new_p_elem = OxmlElement('w:p')
+                        # 复制段落属性（对齐方式、间距等）
+                        source_pPr = para._element.find(qn('w:pPr'))
+                        if source_pPr is not None:
+                            new_pPr = copy.deepcopy(source_pPr)
+                            new_p_elem.append(new_pPr)
+                        parent_elem.addnext(new_p_elem)
+
+                        new_para = Paragraph(new_p_elem, para.part)
+                        new_run = new_para.add_run(line)
+                        if font_name:
+                            new_run.font.name = font_name
+                        if font_size:
+                            new_run.font.size = font_size
+                        if font_bold is not None:
+                            new_run.font.bold = font_bold
+                        new_para.paragraph_format.first_line_indent = indent
+
+                        parent_elem = new_p_elem
+                else:
+                    # 清空段落
+                    para.clear()
+
+                    # 添加新文本，保留格式
+                    run = para.add_run(new_text)
+                    if font_name:
+                        run.font.name = font_name
+                    if font_size:
+                        run.font.size = font_size
+                    if font_bold is not None:
+                        run.font.bold = font_bold
             else:
                 # 没有run，直接替换文本
                 para.text = new_text
