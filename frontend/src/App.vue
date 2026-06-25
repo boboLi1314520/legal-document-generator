@@ -340,6 +340,12 @@
                 </el-col>
               </el-row>
             </el-form>
+            <div class="defendant-card-footer">
+              <el-button type="danger" size="small" @click="removeDefendant(index)">
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+            </div>
           </div>
           <el-button type="primary" plain @click="addDefendant">
             <el-icon><Plus /></el-icon>
@@ -357,8 +363,16 @@
               <span>额度合同（共{{ caseData.loan_contracts.quota_count }}份）</span>
             </div>
             <el-table :data="caseData.loan_contracts.quota_contracts" size="small" border v-if="caseData.loan_contracts.quota_contracts.length > 0">
-              <el-table-column prop="contract_no" label="合同编号" min-width="200" />
-              <el-table-column prop="contract_date" label="签订日期" width="150" />
+              <el-table-column prop="contract_no" label="合同编号" min-width="200">
+                <template #default="{ row }">
+                  <el-input v-model="row.contract_no" size="small" />
+                </template>
+              </el-table-column>
+              <el-table-column prop="contract_date" label="签订日期" width="150">
+                <template #default="{ row }">
+                  <el-input v-model="row.contract_date" size="small" placeholder="手动填写" />
+                </template>
+              </el-table-column>
             </el-table>
             <el-empty v-else description="暂无额度合同数据" :image-size="60" />
           </div>
@@ -534,7 +548,7 @@
         </div>
 
         <!-- 执行申请书信息 -->
-        <div class="section-block">
+        <div class="section-block" v-if="sectionVisible.execution">
           <div class="section-title"><el-icon><FolderOpened /></el-icon> 执行申请书信息</div>
           <el-form :model="caseData.execution_info" label-width="130px">
             <el-row :gutter="20">
@@ -584,10 +598,16 @@
               </el-col>
             </el-row>
           </el-form>
+          <div class="section-footer">
+            <el-button type="danger" size="small" @click="sectionVisible.execution = false">
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </div>
         </div>
 
         <!-- 律师函信息 -->
-        <div class="section-block">
+        <div class="section-block" v-if="sectionVisible.lawyerLetter">
           <div class="section-title"><el-icon><Message /></el-icon> 律师函信息</div>
           <el-form :model="caseData.lawyer_letter_info" label-width="100px">
             <el-row :gutter="20">
@@ -617,6 +637,12 @@
               </el-col>
             </el-row>
           </el-form>
+          <div class="section-footer">
+            <el-button type="danger" size="small" @click="sectionVisible.lawyerLetter = false">
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </div>
         </div>
 
         <!-- 证据目录页码 -->
@@ -738,6 +764,12 @@ const loadingFolders = ref(false)
 const idCardImages = ref({})
 const showIdCardDialog = ref(false)
 const currentIdCardImage = ref('')
+
+// 板块显示/隐藏控制
+const sectionVisible = reactive({
+  lawyerLetter: true,
+  execution: true
+})
 
 // 案件数据
 const caseData = reactive({
@@ -1096,6 +1128,20 @@ function showIdCardImage(index) {
     currentIdCardImage.value = idCardImages.value[index]
     showIdCardDialog.value = true
   }
+}
+
+// 当天日期格式化
+function getTodayString() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}年${m}月${d}日`
+}
+
+// 删除被告
+function removeDefendant(index) {
+  caseData.defendants.splice(index, 1)
 }
 
 // 添加被告
@@ -1559,6 +1605,22 @@ body {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.defendant-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.section-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
 }
 
 .doc-checkbox-group {
