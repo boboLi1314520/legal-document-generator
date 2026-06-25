@@ -246,7 +246,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="住所">
-                  <el-input v-model="caseData.company_info.company_addr" />
+                  <el-input v-model="caseData.company_info.company_addr" type="textarea" :rows="2" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -346,7 +346,7 @@
                 </el-col>
                 <el-col :span="8">
                   <el-form-item label="住址">
-                    <el-input v-model="defendant.def_addr" />
+                    <el-input v-model="defendant.def_addr" type="textarea" :rows="2" />
                   </el-form-item>
                 </el-col>
               </el-row>

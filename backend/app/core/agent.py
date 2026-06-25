@@ -127,9 +127,13 @@ class LegalAgent:
                 result["def_nation"] = nation_match.group(1)
 
         # 提取住址 - 处理OCR结果中"住址"和地址连在一起的情况
-        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=公民身份|$)', text)
+        # re.DOTALL: 让.匹配\n，地址可能跨多行
+        # \d{17}[\dXx]: 身份证号作为终止标记，防止"公民身份"被OCR拆开
+        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|$)', text, re.DOTALL)
         if addr_match:
             addr = addr_match.group(1).strip()
+            # 清理可能夹杂的换行符
+            addr = addr.replace('\n', '').replace('\r', '')
             # 合并分散的地址信息
             # 处理"村266号"等地址片段
             village_match = re.search(r'(村[^住址公民身份]+)', text)
@@ -929,9 +933,13 @@ class LegalAgent:
                             break
 
         # 提取住址
-        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\n|$|公民身份)', text)
+        # re.DOTALL: 让.匹配\n，地址可能跨多行
+        # \d{17}[\dXx]: 身份证号作为终止标记，防止"公民身份"被OCR拆开
+        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|\n公民|$)', text, re.DOTALL)
         if addr_match:
             addr = addr_match.group(1).strip()
+            # 清理可能夹杂的换行符
+            addr = addr.replace('\n', '').replace('\r', '')
             # 合并地址片段
             village_match = re.search(r'(村[^住址公民身份\n]+)', text)
             if village_match:
