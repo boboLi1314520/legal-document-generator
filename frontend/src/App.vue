@@ -770,9 +770,9 @@ const caseData = reactive({
     court_name: '',
     case_number: '',
     judgment_document: '',
-    page_number1: '1',
-    page_number2: '2',
-    page_number3: '3'
+    page_number1: '',
+    page_number2: '',
+    page_number3: ''
   },
   lawyer_letter_info: {
     recipient: '',

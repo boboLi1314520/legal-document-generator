@@ -575,6 +575,31 @@ class ExtractorService:
                             def_addr=id_info.get("def_addr", "")
                         ))
 
+        # 6. 提取证据目录页码（PDF实际页数）
+        if "loan_flow" in files:
+            for f in files["loan_flow"]:
+                if f["filename"].endswith(".pdf"):
+                    count = self.pdf_service.get_page_count(f["path"])
+                    case_data.case_info.page_number1 = str(count) if count > 0 else ""
+                    print(f"[页码提取] 放款流水页数: {case_data.case_info.page_number1}")
+                    break
+
+        if "repay_flow" in files:
+            for f in files["repay_flow"]:
+                if f["filename"].endswith(".pdf"):
+                    count = self.pdf_service.get_page_count(f["path"])
+                    case_data.case_info.page_number2 = str(count) if count > 0 else ""
+                    print(f"[页码提取] 还款流水页数: {case_data.case_info.page_number2}")
+                    break
+
+        if "calc_logic" in files:
+            for f in files["calc_logic"]:
+                if f["filename"].endswith(".pdf"):
+                    count = self.pdf_service.get_page_count(f["path"])
+                    case_data.case_info.page_number3 = str(count) if count > 0 else ""
+                    print(f"[页码提取] 金额计算逻辑页数: {case_data.case_info.page_number3}")
+                    break
+
         return case_data
 
     def get_file_stats(self, folder_path: str) -> Dict:

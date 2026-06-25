@@ -18,9 +18,9 @@ class CaseInfo(BaseModel):
     court_name: Optional[str] = ""   # 受理法院名称
     case_number: Optional[str] = ""  # 案号（手动填写）
     judgment_document: Optional[str] = ""  # 判决文书（执行申请书用）
-    page_number1: Optional[str] = "1"  # 证据目录页码1（放款流水）
-    page_number2: Optional[str] = "2"  # 证据目录页码2（还款流水）
-    page_number3: Optional[str] = "3"  # 证据目录页码3（金额计算逻辑）
+    page_number1: Optional[str] = ""  # 证据目录页码1（放款流水）
+    page_number2: Optional[str] = ""  # 证据目录页码2（还款流水）
+    page_number3: Optional[str] = ""  # 证据目录页码3（金额计算逻辑）
 
 
 class LawyerLetterInfo(BaseModel):
@@ -318,9 +318,9 @@ class CaseData(BaseModel):
             "court_fee": self.execution_info.court_fee or "【受理费】",
             "preservation_fee": self.execution_info.preservation_fee or "【保全费】",
             "notice_fee": self.execution_info.notice_fee or "【公告费】",
-            "page number1": str(self.case_info.page_number1 or "1"),
-            "page number2": str(self.case_info.page_number2 or "2"),
-            "page number3": str(self.case_info.page_number3 or "3"),
+            "page number1": str(self.case_info.page_number1 or ""),
+            "page number2": str(self.case_info.page_number2 or ""),
+            "page number3": str(self.case_info.page_number3 or ""),
             "收件人": self.lawyer_letter_info.recipient or "【收件人】",
             "金额": self.lawyer_letter_info.amount or self.debt_info.principal or "【金额】",
         }
