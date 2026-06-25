@@ -517,6 +517,14 @@
             </el-row>
             <el-row :gutter="20">
               <el-col :span="12">
+                <el-form-item label="注销文件">
+                  <el-select v-model="caseData.case_info.cancel_doc" placeholder="请选择" style="width: 100%">
+                    <el-option label="清算报告" value="清算报告" />
+                    <el-option label="简易注销全体投资人承诺书" value="简易注销全体投资人承诺书" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
                 <el-form-item label="委托律师">
                   <el-input v-model="caseData.lawer" placeholder="手动填写" />
                 </el-form-item>
@@ -772,7 +780,8 @@ const caseData = reactive({
     judgment_document: '',
     page_number1: '',
     page_number2: '',
-    page_number3: ''
+    page_number3: '',
+    cancel_doc: ''
   },
   lawyer_letter_info: {
     recipient: '',

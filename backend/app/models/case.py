@@ -21,6 +21,7 @@ class CaseInfo(BaseModel):
     page_number1: Optional[str] = ""  # 证据目录页码1（放款流水）
     page_number2: Optional[str] = ""  # 证据目录页码2（还款流水）
     page_number3: Optional[str] = ""  # 证据目录页码3（金额计算逻辑）
+    cancel_doc: Optional[str] = ""  # 注销文件类型（清算报告/简易注销全体投资人承诺书）
 
 
 class LawyerLetterInfo(BaseModel):
@@ -265,6 +266,7 @@ class CaseData(BaseModel):
             "company_cancel_apply": self.company_info.company_cancel_apply or "【核准日期】",
             "company_cancel_date": self.company_info.company_cancel_date or "【注销日期】",
             "company_cancel_approve": self.company_info.company_cancel_apply or "【核准日期】",
+            "cancel_doc": self.case_info.cancel_doc or "",
             "company_addr": self.company_info.company_addr or "【住所】",
             "company_reg": self.company_info.company_reg or "【登记机关】",
             "capital_status": self.company_info.capital_status or "【出资状态】",
