@@ -245,13 +245,13 @@
             </el-row>
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="成立日期">
-                  <el-input v-model="caseData.company_info.company_establish" />
+                <el-form-item label="住所">
+                  <el-input v-model="caseData.company_info.company_addr" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="住所">
-                  <el-input v-model="caseData.company_info.company_addr" />
+                <el-form-item label="成立日期">
+                  <el-input v-model="caseData.company_info.company_establish" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -272,6 +272,7 @@
                 <el-form-item label="出资状态">
                   <el-select v-model="caseData.company_info.capital_status" placeholder="手动填写" style="width: 100%">
                     <el-option label="未实缴" value="未实缴" />
+                    <el-option label="部分实缴" value="部分实缴" />
                     <el-option label="已实缴" value="已实缴" />
                   </el-select>
                 </el-form-item>
@@ -298,12 +299,12 @@
             </div>
             <el-form :model="defendant" label-width="80px">
               <el-row :gutter="20">
-                <el-col :span="6">
+                <el-col :span="4">
                   <el-form-item label="姓名">
                     <el-input v-model="defendant.def_name" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="6">
+                <el-col :span="4">
                   <el-form-item label="性别">
                     <el-select v-model="defendant.def_gender" style="width: 100%">
                       <el-option label="男" value="男" />
@@ -311,12 +312,22 @@
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :span="6">
+                <el-col :span="4">
                   <el-form-item label="民族">
                     <el-input v-model="defendant.def_nation" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="6">
+                <el-col :span="4">
+                  <el-form-item label="认缴额(万)">
+                    <el-input v-model="defendant.def_subscribe_amount" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="4">
+                  <el-form-item label="实缴额(万)">
+                    <el-input v-model="defendant.def_paid_amount" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="4">
                   <el-form-item label="持股比例">
                     <el-input v-model="defendant.def_share" />
                   </el-form-item>
@@ -1153,6 +1164,8 @@ function addDefendant() {
     def_id: '',
     def_addr: '',
     def_tel: '',
+    def_subscribe_amount: '',
+    def_paid_amount: '',
     def_share: '',
     is_legal_rep: false
   })

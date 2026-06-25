@@ -142,6 +142,91 @@ class PDFService:
 
         return text
 
+    def ocr_image_with_positions(self, image_path: str) -> list:
+        """OCR识别图片，返回带坐标的文本块列表
+
+        返回格式: [{"text": "xxx", "cx": float, "cy": float, "x": float, "y": float, "width": float, "height": float}, ...]
+        cx/cy: 文本块中心坐标
+        x/y: 左上角坐标
+        width/height: 宽高
+        """
+        blocks = []
+
+        # RapidOCR（推荐，返回坐标）
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            ocr = RapidOCR()
+            result, elapse = ocr(image_path)
+            if result:
+                for line in result:
+                    if line and len(line) >= 2:
+                        coords = line[0]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+                        text = line[1]
+                        if not text or not text.strip():
+                            continue
+                        if coords and len(coords) >= 4:
+                            x1, y1 = coords[0][0], coords[0][1]
+                            x3, y3 = coords[2][0], coords[2][1]
+                            blocks.append({
+                                "text": text.strip(),
+                                "x": float(x1),
+                                "y": float(y1),
+                                "cx": float((x1 + x3) / 2),
+                                "cy": float((y1 + y3) / 2),
+                                "width": float(abs(x3 - x1)),
+                                "height": float(abs(y3 - y1))
+                            })
+                if blocks:
+                    return blocks
+        except Exception as e:
+            print(f"RapidOCR坐标提取失败: {e}")
+
+        # EasyOCR回退（也返回坐标）
+        try:
+            import easyocr
+            reader = easyocr.Reader(['ch_sim', 'en'], gpu=False)
+            result = reader.readtext(image_path)
+            for detection in result:
+                coords, text, conf = detection
+                if not text or not text.strip():
+                    continue
+                x1, y1 = coords[0][0], coords[0][1]
+                x3, y3 = coords[2][0], coords[2][1]
+                blocks.append({
+                    "text": text.strip(),
+                    "x": float(x1),
+                    "y": float(y1),
+                    "cx": float((x1 + x3) / 2),
+                    "cy": float((y1 + y3) / 2),
+                    "width": float(abs(x3 - x1)),
+                    "height": float(abs(y3 - y1))
+                })
+            if blocks:
+                return blocks
+        except Exception as e:
+            print(f"EasyOCR坐标提取失败: {e}")
+
+        # Tesseract回退（无坐标）
+        try:
+            import pytesseract
+            img = Image.open(image_path)
+            text = pytesseract.image_to_string(img, lang='chi_sim+eng')
+            if text.strip():
+                # Tesseract没有坐标，每行作为一个块，坐标为0
+                for line_text in text.split('\n'):
+                    line_text = line_text.strip()
+                    if line_text:
+                        blocks.append({
+                            "text": line_text,
+                            "x": 0, "y": 0, "cx": 0, "cy": 0,
+                            "width": 0, "height": 0
+                        })
+                return blocks
+        except Exception as e:
+            print(f"Tesseract失败: {e}")
+
+        return blocks
+
     def extract_text_with_ocr(self, file_path: str) -> str:
         """提取PDF文本，如果直接提取为空则使用OCR
 

@@ -481,6 +481,364 @@ class LegalAgent:
 
         return result
 
+    def _build_ocr_grid(self, blocks: list, row_tolerance: float = 30) -> list:
+        """将OCR文本块按Y坐标分组为行列网格
+
+        Args:
+            blocks: OCR结果列表 [{"text", "cx", "cy", "x", "y", "width", "height"}, ...]
+            row_tolerance: 同行Y坐标容差（像素）
+
+        Returns:
+            二维数组 grid[row][col]，每行按X坐标排序
+        """
+        if not blocks:
+            return []
+
+        # 按Y坐标排序
+        sorted_blocks = sorted(blocks, key=lambda b: b.get("cy", 0))
+
+        # 分组为行
+        rows = []
+        current_row = [sorted_blocks[0]]
+        current_cy = sorted_blocks[0].get("cy", 0)
+
+        for block in sorted_blocks[1:]:
+            cy = block.get("cy", 0)
+            if abs(cy - current_cy) <= row_tolerance:
+                current_row.append(block)
+            else:
+                rows.append(current_row)
+                current_row = [block]
+                current_cy = cy
+        rows.append(current_row)
+
+        # 每行内按X坐标排序
+        grid = []
+        for row in rows:
+            row_sorted = sorted(row, key=lambda b: b.get("x", 0))
+            grid.append([b["text"] for b in row_sorted])
+
+        # 打印调试信息
+        print(f"[OCR网格] 共{len(grid)}行")
+        for r, row in enumerate(grid):
+            print(f"  行{r}: {row}")
+
+        return grid
+
+    @staticmethod
+    def _clean_company_reg(val: str) -> str:
+        """清洗登记机关文本：去掉前缀标签、后缀登记状态"""
+        val = re.sub(r'登记机关[：:]\s*', '', val)
+        val = re.sub(r'\s*登记状态[：:].*$', '', val)
+        return val.strip()
+
+    def _extract_field(self, grid: list, labels: list, value_pattern: str = None) -> str:
+        """扫描grid，找到含labels中任一关键词的行，返回该标签后的值
+
+        策略：
+        1. 先尝试从标签所在列的下一列取值
+        2. 再尝试从该行文本中正则提取
+        """
+        for row_cells in grid:
+            row_text = " ".join(row_cells)
+            for label in labels:
+                if label not in row_text:
+                    continue
+                # 策略1：标签所在列的下一个单元格
+                for i, cell in enumerate(row_cells):
+                    if label in cell and i + 1 < len(row_cells):
+                        val = row_cells[i + 1].strip()
+                        if val and label not in val:
+                            # 如果指定了value_pattern，验证一下
+                            if value_pattern:
+                                m = re.search(value_pattern, val)
+                                if m:
+                                    return m.group(0)
+                                break  # 不匹配，跳出内层循环尝试策略2
+                            return val
+                # 策略2：从整行正则提取 label：value
+                m = re.search(label + r'[：:]?\s*(.+)', row_text)
+                if m:
+                    val = m.group(1).strip()
+                    if val and len(val) > 0:
+                        if value_pattern:
+                            pm = re.search(value_pattern, val)
+                            if pm:
+                                return pm.group(0)
+                            break
+                        return val
+                break  # label matched row but couldn't extract, stop trying labels
+        return ""
+
+    PAGINATION_WORDS = {"首页", "上一页", "下一页", "尾页", "第", "跳转", "页"}
+
+    def _parse_business_license(self, grid: list, raw_text: str = "") -> dict:
+        """从营业执照信息照片的OCR网格中提取公司信息
+
+        使用关键词扫描替代硬编码位置，适应不同布局。
+        列布局：奇数列=标签，偶数列=值。
+        """
+        result = {
+            "target_company": "",
+            "legal_representative": "",
+            "company_establish": "",
+            "company_cancel_apply": "",
+            "company_capital": "",
+            "company_reg": "",
+            "company_addr": "",
+            "shareholder_names": [],
+            "company_id": ""
+        }
+
+        # ===== 关键词扫描提取 =====
+        result["company_id"] = self._extract_field(grid, ["统一社会信用代码"], r'[A-Z0-9]{18}')
+        result["target_company"] = self._extract_field(grid, ["企业名称", "公司名称"])
+        result["legal_representative"] = self._extract_field(grid, ["法定代表人"], r'[一-龥]{2,4}')
+        result["company_establish"] = self._extract_field(grid, ["成立日期"], r'\d{4}年\d{1,2}月\d{1,2}日')
+        result["company_cancel_apply"] = self._extract_field(grid, ["核准日期"], r'\d{4}年\d{1,2}月\d{1,2}日')
+
+        # 注册资本
+        cap_val = self._extract_field(grid, ["注册资本"])
+        if cap_val:
+            cap_match = re.search(r'([\d\.]+万)', cap_val)
+            if cap_match:
+                result["company_capital"] = CompanyInfo.format_capital(cap_match.group(1))
+                print(f"[营业执照解析] 注册资本: {result['company_capital']}")
+
+        # 登记机关（需清洗前缀/后缀）
+        reg_val = self._extract_field(grid, ["登记机关"])
+        if reg_val:
+            result["company_reg"] = self._clean_company_reg(reg_val)
+            print(f"[营业执照解析] 登记机关: {result['company_reg']}")
+
+        # 住所
+        addr_val = self._extract_field(grid, ["住所"])
+        if addr_val and re.search(r'[省市县区镇乡村街道路号房栋]', addr_val):
+            result["company_addr"] = addr_val
+            print(f"[营业执照解析] 住所: {result['company_addr']}")
+
+        # ===== 收集所有日期，回退公司日期字段 =====
+        all_text_lines = [" ".join(row) for row in grid]
+        full_text = "\n".join(all_text_lines)
+
+        dates = re.findall(r'\d{4}年\d{1,2}月\d{1,2}日', full_text)
+        unique_dates = list(dict.fromkeys(dates))
+        print(f"[营业执照解析] 找到日期: {unique_dates}")
+
+        if not result["company_establish"] and len(unique_dates) >= 1:
+            result["company_establish"] = unique_dates[0]
+            print(f"[营业执照解析] 成立日期(回退): {unique_dates[0]}")
+        if not result["company_cancel_apply"] and len(unique_dates) >= 2:
+            result["company_cancel_apply"] = unique_dates[1]
+            print(f"[营业执照解析] 核准日期(回退): {unique_dates[1]}")
+
+        # 企业名称回退：找含"公司"的行
+        if not result["target_company"]:
+            for line in all_text_lines:
+                if "公司" in line:
+                    match = re.search(r'([一-龥]+有限公司|[一-龥]+有限责任公司)', line)
+                    if match:
+                        result["target_company"] = match.group(1)
+                        print(f"[营业执照解析] 企业名称(回退): {result['target_company']}")
+                        break
+
+        # 法定代表人回退
+        if not result["legal_representative"]:
+            for line in all_text_lines:
+                if "法定代表人" in line:
+                    match = re.search(r'法定代表人[：:]?\s*([一-龥]{2,4})', line)
+                    if match:
+                        result["legal_representative"] = match.group(1)
+                        print(f"[营业执照解析] 法定代表人(回退): {result['legal_representative']}")
+                        break
+
+        # 注册资本回退
+        if not result["company_capital"]:
+            for line in all_text_lines:
+                cap_match = re.search(r'([\d\.]+万)', line)
+                if cap_match:
+                    result["company_capital"] = CompanyInfo.format_capital(cap_match.group(1))
+                    print(f"[营业执照解析] 注册资本(回退): {result['company_capital']}")
+                    break
+
+        # 登记机关回退
+        if not result["company_reg"]:
+            for line in all_text_lines:
+                if "市场监督" in line or "管理局" in line:
+                    result["company_reg"] = self._clean_company_reg(line.strip())
+                    print(f"[营业执照解析] 登记机关(回退): {result['company_reg']}")
+                    break
+
+        # 住所回退
+        if not result["company_addr"]:
+            for line in all_text_lines:
+                if "住所" in line:
+                    addr = re.sub(r'住所[：:]?\s*', '', line).strip()
+                    if addr and len(addr) > 5:
+                        result["company_addr"] = addr
+                        print(f"[营业执照解析] 住所(回退): {addr}")
+                        break
+
+        # ===== 股东名称提取 =====
+        # 找到"股东及出资信息"表格，从下一行开始提取名称
+        in_shareholder = False
+        for row_idx, row in enumerate(grid):
+            row_text = " ".join(row)
+            # 检查分页终止条件
+            if "共查询" in row_text or "首页" in row_text:
+                in_shareholder = False
+                break
+
+            if "股东及出资信息" in row_text or "股东名称" in row_text:
+                in_shareholder = True
+                print(f"[营业执照解析] 进入股东表格(行{row_idx}): {row_text}")
+                continue
+
+            if in_shareholder and len(row) >= 2:
+                # 股东名称通常在表头后的第2列
+                # 格式：['序号', '股东名称', '股东类型', ...] → 股东名称在col1
+                # 数据行：['张纪超', '自然人股东', ...] → 名称在col0
+                # 尝试从第1列或第2列提取
+                for col_idx in [0, 1]:
+                    if col_idx < len(row):
+                        col_val = row[col_idx].strip()
+                        if not col_val or col_val.isdigit() or len(col_val) <= 1:
+                            continue
+                        if col_val in ["股东名称", "序号", "认缴出资额", "实缴出资额", "认缴出资日期",
+                                        "股东类型", "证照/证照号码", "非公示项", "自然人股东", "详情", "查看"]:
+                            continue
+                        if col_val in self.PAGINATION_WORDS:
+                            continue
+                        if any(w in col_val for w in self.PAGINATION_WORDS):
+                            continue
+                        # 名称：2-4个中文字符
+                        names = re.split(r'[、,，\s]+', col_val)
+                        for name in names:
+                            name = name.strip()
+                            if name and 2 <= len(name) <= 4 and re.match(r'^[一-龥]+$', name):
+                                if name not in result["shareholder_names"]:
+                                    result["shareholder_names"].append(name)
+                                    print(f"[营业执照解析] 股东: {name}")
+                        break  # 从当前行提取到一个即可
+
+        print(f"[营业执照解析] 结果: {json.dumps(result, ensure_ascii=False)}")
+        return result
+
+    def _parse_shareholder_detail(self, grid: list, raw_text: str = "") -> dict:
+        """从股东及出资详细信息照片的OCR网格中提取股东详情
+
+        网格布局（实际OCR输出）：
+        Row 0: ['股东及出资详细信息']
+        Row 1: ['股东信息']              ← 第一个表格标题
+        Row 2: ['股东名称', '张纪超']    ← 数据行：名称
+        Row 3: ['认缴额(万元)', '40']    ← 数据行：认缴额
+        Row 4: ['实缴额（万元）']         ← 数据行：实缴额（可能为空）
+        Row 5: ['认缴明细信息']          ← 第二个表格标题
+        Row 6: ['认缴出资方式', '认缴出资额（万元）', '认缴出资日期']  ← 列头
+        Row 7: ['货币', '40', '2051年1月1日']  ← 数据行：认缴日期
+
+        Returns:
+            {"name": "张纪超", "share": "40", "subscribe_date": "2051年1月1日", "paid_amount": "0"}
+        """
+        result = {
+            "name": "",
+            "share": "",
+            "paid_amount": "",
+            "subscribe_date": ""
+        }
+
+        def safe_get(row, col):
+            if 0 < row <= len(grid) and 0 < col <= len(grid[row - 1]):
+                val = grid[row - 1][col - 1]
+                if val:
+                    return val
+            return ""
+
+        all_text = [" ".join(row) for row in grid]
+        full_text = "\n".join(all_text)
+        print(f"[股东详情解析] 共{len(grid)}行: {all_text[:5]}...")
+
+        # 查找"股东信息"行 → 数据从下一行开始
+        shareholder_data_start = -1
+        subscription_data_start = -1
+
+        for r, row in enumerate(grid):
+            row_text = " ".join(row)
+            if "股东信息" in row_text and shareholder_data_start < 0:
+                shareholder_data_start = r + 2  # 跳过标题行，指向数据行（1-based）
+            if "认缴明细" in row_text and subscription_data_start < 0:
+                subscription_data_start = r + 3  # 跳过标题行+列头行，指向数据行（1-based）
+
+        # 股东名称
+        if shareholder_data_start > 0:
+            val = safe_get(shareholder_data_start, 2)  # 第2列是名称值
+            if val and 2 <= len(val) <= 4 and re.match(r'^[一-龥]+$', val):
+                result["name"] = val
+                print(f"[股东详情] 名称: {val}")
+
+            # 认缴额
+            val = safe_get(shareholder_data_start + 1, 2)
+            if val:
+                amount_match = re.search(r'(\d+\.?\d*)', val)
+                if amount_match:
+                    result["share"] = amount_match.group(1)
+                    print(f"[股东详情] 认缴额: {result['share']}万元")
+
+            # 实缴额
+            val = safe_get(shareholder_data_start + 2, 2)
+            if val:
+                amount_match = re.search(r'(\d+\.?\d*)', val)
+                if amount_match:
+                    result["paid_amount"] = amount_match.group(1)
+                    print(f"[股东详情] 实缴额: {result['paid_amount']}万元")
+                else:
+                    result["paid_amount"] = "0"
+            else:
+                result["paid_amount"] = "0"
+                print(f"[股东详情] 实缴额: 为空，默认0")
+
+        # 认缴出资日期
+        if subscription_data_start > 0:
+            val = safe_get(subscription_data_start, 3)  # 第3列是日期值
+            if val:
+                date_match = re.search(r'(\d{4}年\d{1,2}月\d{1,2}日)', val)
+                if date_match:
+                    result["subscribe_date"] = date_match.group(1)
+                    print(f"[股东详情] 认缴日期: {result['subscribe_date']}")
+
+        # 关键词回退
+        if not result["name"]:
+            for line in all_text:
+                if "股东" in line and "信息" not in line and "出资" not in line:
+                    name_match = re.search(r'([一-龥]{2,4})', line)
+                    if name_match and name_match.group(1) not in ["股东名称", "股东"]:
+                        result["name"] = name_match.group(1)
+                        print(f"[股东详情] 名称(回退): {result['name']}")
+                        break
+
+        if not result["share"]:
+            share_match = re.search(r'认缴额[：:(（]?\s*(\d+\.?\d*)', full_text)
+            if share_match:
+                result["share"] = share_match.group(1)
+                print(f"[股东详情] 认缴额(回退): {result['share']}万元")
+
+        if not result["paid_amount"]:
+            paid_match = re.search(r'实缴额[：:(（]?\s*(\d+\.?\d*)', full_text)
+            if paid_match:
+                result["paid_amount"] = paid_match.group(1)
+                print(f"[股东详情] 实缴额(回退): {result['paid_amount']}万元")
+            else:
+                result["paid_amount"] = "0"
+
+        if not result["subscribe_date"]:
+            date_match = re.search(r'(\d{4}年\d{1,2}月\d{1,2}日)', full_text)
+            if date_match:
+                result["subscribe_date"] = date_match.group(1)
+                print(f"[股东详情] 认缴日期(回退): {result['subscribe_date']}")
+
+        print(f"[股东详情] 结果: {json.dumps(result, ensure_ascii=False)}")
+        return result
+
     async def parse_id_card(self, text: str) -> dict:
         """解析身份证PDF
 

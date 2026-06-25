@@ -312,6 +312,8 @@ async def get_company_folders():
 # 文件分类关键词
 FILE_PATTERNS = {
     "public_report": ["公示系统", "企业信用信息公示"],
+    "business_license": ["营业执照信息"],
+    "shareholder_detail": ["股东及出资详细信息"],
     "id_card_front": ["身份证正面照片", "身份证正面"],
     "id_card_back": ["身份证反面照片", "身份证反面"],
     "quota_contract": ["额度合同"],
@@ -423,26 +425,18 @@ async def process_company_folder(folder_path: str) -> CaseData:
     # 使用抽取服务处理（主要从Excel提取数据）
     case_data = extractor_service.process_company_folder(folder_path, legal_agent)
 
-    # 解析公示系统PDF（提取住所、登记机关等）
+    # 解析公示系统PDF（兼容旧格式）
     for filename in os.listdir(folder_path):
         if "公示系统" in filename or "企业信用信息公示" in filename:
             pdf_path = os.path.join(folder_path, filename)
             print(f"[公示系统] 正在解析: {filename}")
-
-            # 先尝试直接提取文本
             pdf_text = pdf_service.extract_text(pdf_path)
-
             if not pdf_text.strip():
-                # 如果文本为空（扫描版PDF），使用OCR
                 print(f"[公示系统] 文本为空，使用OCR")
                 pdf_text = pdf_service.extract_text_with_ocr(pdf_path)
-
             if pdf_text:
-                # 使用规则解析（更快更准确）
                 public_info = legal_agent._parse_public_report_rules(pdf_text)
-
                 if public_info:
-                    # 更新公司信息
                     if public_info.get("target_company"):
                         case_data.company_info.target_company = public_info["target_company"]
                     if public_info.get("company_capital"):
@@ -461,8 +455,6 @@ async def process_company_folder(folder_path: str) -> CaseData:
                         case_data.company_info.capital_status = public_info["capital_status"]
                     if public_info.get("subscribe_date"):
                         case_data.company_info.subscribe_date = public_info["subscribe_date"]
-
-                    # 更新股东信息
                     shareholders = public_info.get("shareholders", [])
                     for i, sh in enumerate(shareholders):
                         if i < len(case_data.defendants):
@@ -470,15 +462,114 @@ async def process_company_folder(folder_path: str) -> CaseData:
                             if not case_data.defendants[i].def_name:
                                 case_data.defendants[i].def_name = sh.get("name", "")
                         else:
-                            # 添加新股东
-                            new_def = DefendantInfo(
-                                def_name=sh.get("name", ""),
-                                def_share=sh.get("share", "")
-                            )
-                            case_data.defendants.append(new_def)
-
+                            case_data.defendants.append(DefendantInfo(def_name=sh.get("name", ""), def_share=sh.get("share", "")))
                     print(f"[公示系统] 解析完成: {public_info.get('target_company', '')}")
-            break  # 只处理第一个公示系统文件
+            break
+
+    # 解析营业执照信息照片（JPG/PNG）—— 新格式
+    for filename in os.listdir(folder_path):
+        if "营业执照信息" in filename:
+            file_path = os.path.join(folder_path, filename)
+            ext = os.path.splitext(filename)[1].lower()
+            if ext not in ['.jpg', '.jpeg', '.png']:
+                continue
+            print(f"[营业执照] 正在OCR识别: {filename}")
+            blocks = pdf_service.ocr_image_with_positions(file_path)
+            if not blocks:
+                continue
+            grid = legal_agent._build_ocr_grid(blocks)
+            license_info = legal_agent._parse_business_license(grid)
+            if license_info:
+                if license_info.get("target_company"):
+                    case_data.company_info.target_company = license_info["target_company"]
+                if license_info.get("company_capital"):
+                    case_data.company_info.company_capital = CompanyInfo.format_capital(license_info["company_capital"])
+                if license_info.get("company_establish"):
+                    case_data.company_info.company_establish = license_info["company_establish"]
+                if license_info.get("company_addr"):
+                    case_data.company_info.company_addr = license_info["company_addr"]
+                if license_info.get("company_reg"):
+                    case_data.company_info.company_reg = license_info["company_reg"]
+                if license_info.get("legal_representative"):
+                    case_data.company_info.legal_representative = license_info["legal_representative"]
+                if license_info.get("company_cancel_apply"):
+                    case_data.company_info.company_cancel_apply = license_info["company_cancel_apply"]
+                shareholder_names = license_info.get("shareholder_names", [])
+                for name in shareholder_names:
+                    exists = any(d.def_name == name for d in case_data.defendants)
+                    if not exists:
+                        case_data.defendants.append(DefendantInfo(def_name=name))
+                        print(f"[营业执照] 添加股东: {name}")
+            break
+
+    # 解析股东及出资详细信息照片（JPG/PNG）
+    shareholder_files = []
+    for filename in os.listdir(folder_path):
+        if "股东及出资详细信息" in filename:
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in ['.jpg', '.jpeg', '.png']:
+                shareholder_files.append(filename)
+    if shareholder_files:
+        all_dates = []
+        for filename in sorted(shareholder_files):
+            file_path = os.path.join(folder_path, filename)
+            print(f"[股东详情] 正在OCR识别: {filename}")
+            blocks = pdf_service.ocr_image_with_positions(file_path)
+            if not blocks:
+                continue
+            grid = legal_agent._build_ocr_grid(blocks)
+            detail = legal_agent._parse_shareholder_detail(grid)
+            if detail and detail.get("name"):
+                matched = False
+                for def_info in case_data.defendants:
+                    if def_info.def_name == detail["name"]:
+                        if detail.get("share"):
+                            def_info.def_subscribe_amount = detail["share"]
+                        if detail.get("paid_amount"):
+                            def_info.def_paid_amount = detail["paid_amount"]
+                        else:
+                            def_info.def_paid_amount = "0"
+                        matched = True
+                        break
+                if not matched:
+                    case_data.defendants.append(DefendantInfo(
+                        def_name=detail["name"],
+                        def_subscribe_amount=detail.get("share", ""),
+                        def_paid_amount=detail.get("paid_amount", "0")
+                    ))
+                if detail.get("subscribe_date"):
+                    all_dates.append(detail["subscribe_date"])
+        if all_dates:
+            unique_dates = list(dict.fromkeys(all_dates))
+            case_data.company_info.subscribe_date = unique_dates[0] if len(unique_dates) == 1 else "、".join(unique_dates)
+            print(f"[股东详情] 认缴出质日期: {case_data.company_info.subscribe_date}")
+
+    # 计算持股比例 & 出资状态
+    if case_data.defendants and case_data.company_info.company_capital:
+        cap_str = case_data.company_info.company_capital
+        cap_match = re.search(r'([\d\.]+)', str(cap_str))
+        reg_capital_num = float(cap_match.group(1)) if cap_match else 0.0
+
+        total_paid = 0.0
+        for def_info in case_data.defendants:
+            sub_amount = float(def_info.def_subscribe_amount or 0)
+            paid_amount = float(def_info.def_paid_amount or 0)
+            total_paid += paid_amount
+
+            if reg_capital_num > 0 and sub_amount > 0:
+                ratio = round(sub_amount / reg_capital_num * 100)
+                def_info.def_share = f"{ratio}%"
+            else:
+                def_info.def_share = "0%"
+
+        if total_paid == 0:
+            case_data.company_info.capital_status = "未实缴"
+        elif total_paid >= reg_capital_num:
+            case_data.company_info.capital_status = "已实缴"
+        else:
+            case_data.company_info.capital_status = "部分实缴"
+
+        print(f"[计算] 注册资本={reg_capital_num}万, 实缴总额={total_paid}万, 出资状态={case_data.company_info.capital_status}")
 
     # 解析身份证PDF（提取性别、民族、住址等）
     for filename in os.listdir(folder_path):

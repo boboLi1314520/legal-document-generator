@@ -17,6 +17,8 @@ class ExtractorService:
     # 需要提取的关键文件类型（白名单）
     KEY_FILE_PATTERNS = {
         "public_report": ["公示系统", "企业信用信息公示"],
+        "business_license": ["营业执照信息"],
+        "shareholder_detail": ["股东及出资详细信息"],
         "id_card_front": ["身份证正面照片", "身份证正面"],
         "id_card_back": ["身份证反面照片", "身份证反面"],
         "quota_contract": ["额度合同"],
@@ -486,15 +488,13 @@ class ExtractorService:
 
         case_data.loan_contracts.loan_count = len(case_data.loan_contracts.loan_contracts)
 
-        # 4. 处理公示系统PDF（直接使用规则解析，快速可靠）
+        # 4. 处理公示系统PDF（兼容旧格式，直接使用规则解析）
         if "public_report" in files and agent:
             public_file = files["public_report"][0]
             pdf_text = self.pdf_service.extract_text(public_file["path"])
             if pdf_text:
                 print(f"[公示系统] 正在解析: {public_file['filename']}")
-                # 直接使用规则解析（快速）
                 company_info = agent._parse_public_report_rules(pdf_text)
-
                 if company_info:
                     case_data.company_info.target_company = company_info.get("target_company", "")
                     case_data.company_info.company_capital = CompanyInfo.format_capital(company_info.get("company_capital", ""))
@@ -506,7 +506,6 @@ class ExtractorService:
                     case_data.company_info.company_cancel_date = company_info.get("company_cancel_date", "")
                     case_data.company_info.capital_status = company_info.get("capital_status", "")
                     case_data.company_info.subscribe_date = company_info.get("subscribe_date", "")
-
                     # 处理股东信息
                     shareholders = company_info.get("shareholders", [])
                     for i, sh in enumerate(shareholders):
@@ -514,11 +513,138 @@ class ExtractorService:
                             case_data.defendants[i].def_name = sh.get("name", "")
                             case_data.defendants[i].def_share = sh.get("share", "")
                         else:
-                            # 添加新的被告
                             new_def = DefendantInfo()
                             new_def.def_name = sh.get("name", "")
                             new_def.def_share = sh.get("share", "")
                             case_data.defendants.append(new_def)
+
+        # 4b. 处理营业执照信息照片（JPG/PNG）—— 新格式
+        if "business_license" in files and agent:
+            for file_info in files["business_license"]:
+                ext = os.path.splitext(file_info["filename"])[1].lower()
+                if ext not in ['.jpg', '.jpeg', '.png', '.pdf']:
+                    continue
+                print(f"[营业执照] 正在OCR识别: {file_info['filename']}")
+
+                # OCR识别图片获取带坐标的文本块
+                blocks = self.pdf_service.ocr_image_with_positions(file_info["path"])
+                if not blocks:
+                    print(f"[营业执照] OCR失败，跳过: {file_info['filename']}")
+                    continue
+
+                grid = agent._build_ocr_grid(blocks)
+                license_info = agent._parse_business_license(grid)
+
+                if license_info:
+                    if license_info.get("target_company"):
+                        case_data.company_info.target_company = license_info["target_company"]
+                    if license_info.get("company_capital"):
+                        case_data.company_info.company_capital = CompanyInfo.format_capital(license_info["company_capital"])
+                    if license_info.get("company_establish"):
+                        case_data.company_info.company_establish = license_info["company_establish"]
+                    if license_info.get("company_addr"):
+                        case_data.company_info.company_addr = license_info["company_addr"]
+                    if license_info.get("company_reg"):
+                        case_data.company_info.company_reg = license_info["company_reg"]
+                    if license_info.get("legal_representative"):
+                        case_data.company_info.legal_representative = license_info["legal_representative"]
+                    if license_info.get("company_cancel_apply"):
+                        case_data.company_info.company_cancel_apply = license_info["company_cancel_apply"]
+
+                    # 股东名称 - 创建基础 defendants
+                    shareholder_names = license_info.get("shareholder_names", [])
+                    for name in shareholder_names:
+                        # 检查是否已存在
+                        exists = any(d.def_name == name for d in case_data.defendants)
+                        if not exists:
+                            new_def = DefendantInfo(def_name=name)
+                            case_data.defendants.append(new_def)
+                            print(f"[营业执照] 添加股东: {name}")
+
+        # 4c. 处理股东及出资详细信息照片（JPG/PNG）
+        if "shareholder_detail" in files and agent:
+            all_dates = []
+            for file_info in sorted(files["shareholder_detail"], key=lambda f: f["filename"]):
+                ext = os.path.splitext(file_info["filename"])[1].lower()
+                if ext not in ['.jpg', '.jpeg', '.png', '.pdf']:
+                    continue
+                print(f"[股东详情] 正在OCR识别: {file_info['filename']}")
+
+                blocks = self.pdf_service.ocr_image_with_positions(file_info["path"])
+                if not blocks:
+                    print(f"[股东详情] OCR失败，跳过: {file_info['filename']}")
+                    continue
+
+                grid = agent._build_ocr_grid(blocks)
+                detail = agent._parse_shareholder_detail(grid)
+
+                if detail and detail.get("name"):
+                    # 匹配已有 defendant
+                    matched = False
+                    for def_info in case_data.defendants:
+                        if def_info.def_name == detail["name"]:
+                            if detail.get("share"):
+                                def_info.def_subscribe_amount = detail["share"]
+                            if detail.get("paid_amount"):
+                                def_info.def_paid_amount = detail["paid_amount"]
+                            else:
+                                def_info.def_paid_amount = "0"
+                            matched = True
+                            print(f"[股东详情] 匹配股东{def_info.def_name}: 认缴额={def_info.def_subscribe_amount}, 实缴额={def_info.def_paid_amount}")
+                            break
+                    if not matched:
+                        new_def = DefendantInfo(
+                            def_name=detail["name"],
+                            def_subscribe_amount=detail.get("share", ""),
+                            def_paid_amount=detail.get("paid_amount", "0")
+                        )
+                        case_data.defendants.append(new_def)
+                        print(f"[股东详情] 新增股东: {detail['name']}")
+
+                    if detail.get("subscribe_date"):
+                        all_dates.append(detail["subscribe_date"])
+
+            # 认缴出资日期：取第一个有效日期
+            if all_dates:
+                case_data.company_info.subscribe_date = all_dates[0]
+                # 如果有不同日期，拼接
+                unique_dates = list(dict.fromkeys(all_dates))
+                if len(unique_dates) > 1:
+                    case_data.company_info.subscribe_date = "、".join(unique_dates)
+                print(f"[股东详情] 认缴出资日期: {case_data.company_info.subscribe_date}")
+
+        # 4d. 计算持股比例 & 出资状态
+        if case_data.defendants and case_data.company_info.company_capital:
+            cap_str = case_data.company_info.company_capital
+            cap_match = re.search(r'([\d\.]+)', str(cap_str))
+            reg_capital_num = float(cap_match.group(1)) if cap_match else 0.0
+
+            total_subscribe = 0.0
+            total_paid = 0.0
+            for def_info in case_data.defendants:
+                sub_amount = float(def_info.def_subscribe_amount or 0)
+                paid_amount = float(def_info.def_paid_amount or 0)
+                total_subscribe += sub_amount
+                total_paid += paid_amount
+
+                # 持股比例 = 认缴额 / 注册资本 * 100%
+                if reg_capital_num > 0 and sub_amount > 0:
+                    ratio = round(sub_amount / reg_capital_num * 100)
+                    def_info.def_share = f"{ratio}%"
+                else:
+                    def_info.def_share = "0%"
+
+            # 出资状态
+            if total_paid == 0:
+                case_data.company_info.capital_status = "未实缴"
+            elif total_paid >= reg_capital_num:
+                case_data.company_info.capital_status = "已实缴"
+            else:
+                case_data.company_info.capital_status = "部分实缴"
+
+            print(f"[计算] 注册资本={reg_capital_num}万, 认缴总额={total_subscribe}万, 实缴总额={total_paid}万, 出资状态={case_data.company_info.capital_status}")
+            for def_info in case_data.defendants:
+                print(f"  {def_info.def_name}: 认缴={def_info.def_subscribe_amount}万, 实缴={def_info.def_paid_amount}万, 持股={def_info.def_share}")
 
         # 5. 处理身份证PDF（直接用规则解析，快速可靠）
         if "id_card_front" in files:

@@ -13,6 +13,8 @@ class DefendantInfo(BaseModel):
     def_id: Optional[str] = ""        # 身份证号码
     def_addr: Optional[str] = ""      # 住址
     def_tel: Optional[str] = ""       # 电话
+    def_subscribe_amount: Optional[str] = ""  # 认缴额(万元)
+    def_paid_amount: Optional[str] = ""       # 实缴额(万元)
     def_share: Optional[str] = ""     # 持股比例
     is_legal_rep: bool = False        # 是否为法定代表人
 
@@ -25,6 +27,8 @@ class DefendantInfo(BaseModel):
                 "def_id": "32102819640124281X",
                 "def_addr": "江苏省南京市玄武区XX路XX号",
                 "def_tel": "13787064688",
+                "def_subscribe_amount": "60",
+                "def_paid_amount": "0",
                 "def_share": "60%",
                 "is_legal_rep": True
             }
