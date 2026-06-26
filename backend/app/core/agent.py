@@ -129,24 +129,29 @@ class LegalAgent:
         # 提取住址 - 处理OCR结果中"住址"和地址连在一起的情况
         # re.DOTALL: 让.匹配\n，地址可能跨多行
         # \d{17}[\dXx]: 身份证号作为终止标记，防止"公民身份"被OCR拆开
-        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|$)', text, re.DOTALL)
+        # \d{4}年: 出生日期作为额外终止标记，防止OCR识别失败时地址混入其他信息
+        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|\d{4}年\d{1,2}月\d{1,2}日|\n姓|\n出|$)', text, re.DOTALL)
         if addr_match:
             addr = addr_match.group(1).strip()
             # 清理可能夹杂的换行符
             addr = addr.replace('\n', '').replace('\r', '')
+            # 清理可能混入的非地址信息（出生日期、性别、民族）
+            addr = self._clean_address(addr)
             # 合并分散的地址信息
             # 处理"村266号"等地址片段
-            village_match = re.search(r'(村[^住址公民身份]+)', text)
+            village_match = re.search(r'(村[^住址公民身份\n]+)', text)
             if village_match:
                 village_part = village_match.group(1)
-                if village_part not in addr:
+                # 同样清理村名片段
+                village_part = self._clean_address(village_part)
+                if village_part and village_part not in addr:
                     addr += village_part
             result["def_addr"] = addr
         else:
             # 尝试匹配省份开头的地址
-            addr_match2 = re.search(r'([一-龥]{2,}省[一-龥\d]+)', text)
+            addr_match2 = re.search(r'([一-龥]{2,}[省市区县][一-龥\d]{3,30})', text)
             if addr_match2:
-                result["def_addr"] = addr_match2.group(1)
+                result["def_addr"] = self._clean_address(addr_match2.group(1))
 
         # 提取姓名 - 多种格式处理
         # 格式1: "姓名陈荣" 连在一起
@@ -935,25 +940,49 @@ class LegalAgent:
         # 提取住址
         # re.DOTALL: 让.匹配\n，地址可能跨多行
         # \d{17}[\dXx]: 身份证号作为终止标记，防止"公民身份"被OCR拆开
-        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|\n公民|$)', text, re.DOTALL)
+        # \d{4}年: 出生日期作为额外终止标记，防止OCR识别失败时地址混入其他信息
+        addr_match = re.search(r'住址[：:]?\s*(.+?)(?=\s*\d{17}[\dXx]|公民身份|公民\s*身份|\d{4}年\d{1,2}月\d{1,2}日|\n公民|\n姓|\n出|$)', text, re.DOTALL)
         if addr_match:
             addr = addr_match.group(1).strip()
             # 清理可能夹杂的换行符
             addr = addr.replace('\n', '').replace('\r', '')
+            # 清理可能混入的非地址信息（出生日期、性别、民族）
+            addr = self._clean_address(addr)
             # 合并地址片段
             village_match = re.search(r'(村[^住址公民身份\n]+)', text)
             if village_match:
                 village_part = village_match.group(1)
-                if village_part not in addr:
+                # 同样清理村名片段
+                village_part = self._clean_address(village_part)
+                if village_part and village_part not in addr:
                     addr += village_part
             result["def_addr"] = addr
         else:
             # 尝试匹配省份开头的地址
-            addr_match2 = re.search(r'([一-龥]{2,}省[一-龥]+)', text)
+            addr_match2 = re.search(r'([一-龥]{2,}[省市区县][一-龥\d]{3,30})', text)
             if addr_match2:
-                result["def_addr"] = addr_match2.group(1)
+                result["def_addr"] = self._clean_address(addr_match2.group(1))
 
         return result
+
+    def _clean_address(self, addr: str) -> str:
+        """清理地址中可能混入的非地址信息（出生日期、性别、民族等）"""
+        if not addr:
+            return addr
+        # 去掉出生日期：1980年1月1日 等格式
+        addr = re.sub(r'\d{4}年\d{1,2}月\d{1,2}日', '', addr)
+        # 去掉性别标记：性别男、性别女、男/女（独立出现）
+        addr = re.sub(r'性别[男女]', '', addr)
+        addr = re.sub(r'[男女]性', '', addr)
+        # 去掉民族标记：民族汉、民族X族、汉族 等
+        addr = re.sub(r'民族[一-龥]族?', '', addr)
+        # 去掉身份证号（如果有OCR残留）
+        addr = re.sub(r'\d{17}[\dXx]', '', addr)
+        # 去掉公民身份号码残留
+        addr = re.sub(r'公民\s*身份\s*(号码?)?', '', addr)
+        # 清理多余空格和空白
+        addr = re.sub(r'\s+', '', addr)
+        return addr.strip()
 
     async def generate_complaint(self, case: dict) -> str:
         """生成起诉状内容"""
