@@ -91,6 +91,11 @@ class ExtractorService:
         date_match = re.search(r'(\d{4}年\d{2}月\d{2}日)', filename)
         if date_match:
             result["contract_date"] = date_match.group(1)
+        else:
+            # 兜底：匹配纯数字时间戳格式 _YYYYMMDDHHMMSS，取前8位为日期
+            ts_match = re.search(r'_(\d{4})(\d{2})(\d{2})\d{6}', filename)
+            if ts_match:
+                result["contract_date"] = f"{ts_match.group(1)}年{ts_match.group(2)}月{ts_match.group(3)}日"
 
         return result
 
