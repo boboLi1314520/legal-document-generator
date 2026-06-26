@@ -136,9 +136,9 @@ class ExtractorService:
             result["company_info"]["legal_rep_id"] = safe_get(7)     # 身份证号
             result["company_info"]["legal_rep_tel"] = safe_get(9)    # 手机号
 
-            result["debt_info"]["principal"] = safe_get(11)   # 欠付本金
-            result["debt_info"]["interest"] = safe_get(13)    # 利息
-            result["debt_info"]["penalty_cutoff"] = safe_get(15)  # 罚息
+            result["debt_info"]["principal"] = safe_get(11).replace(",", "")   # 欠付本金
+            result["debt_info"]["interest"] = safe_get(13).replace(",", "")    # 利息
+            result["debt_info"]["penalty_cutoff"] = safe_get(15).replace(",", "")  # 罚息
 
             print(f"[Excel提取] 企业名称: {result['company_info']['target_company']}")
             print(f"[Excel提取] 法人: {result['company_info']['legal_representative']}")

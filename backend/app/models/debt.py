@@ -35,9 +35,9 @@ class DebtInfo(BaseModel):
     def calculate_guarantee_amount(self) -> str:
         """计算保全金额"""
         try:
-            p = float(self.principal or 0)
-            i = float(self.interest or 0)
-            penalty = float(self.penalty_cutoff or 0)
+            p = float((self.principal or "0").replace(",", ""))
+            i = float((self.interest or "0").replace(",", ""))
+            penalty = float((self.penalty_cutoff or "0").replace(",", ""))
             total = p + i + penalty
             return f"{total:.2f}"
         except ValueError:

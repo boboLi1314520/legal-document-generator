@@ -558,6 +558,30 @@
           </el-form>
         </div>
 
+        <!-- 证据目录页码 -->
+        <div class="section-block">
+          <div class="section-title"><el-icon><Document /></el-icon> 证据目录页码</div>
+          <el-form :model="caseData.case_info" label-width="100px">
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-form-item label="放款流水页数">
+                  <el-input v-model="caseData.case_info.page_number1" placeholder="手动填写" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="还款流水页数">
+                  <el-input v-model="caseData.case_info.page_number2" placeholder="手动填写" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="金额计算表页数" label-width="110px">
+                  <el-input v-model="caseData.case_info.page_number3" placeholder="手动填写" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
+        </div>
+
         <!-- 执行申请书信息 -->
         <div class="section-block" v-if="sectionVisible.execution">
           <div class="section-title"><el-icon><FolderOpened /></el-icon> 执行申请书信息</div>
@@ -656,29 +680,6 @@
           </div>
         </div>
 
-        <!-- 证据目录页码 -->
-        <div class="section-block">
-          <div class="section-title"><el-icon><Document /></el-icon> 证据目录页码</div>
-          <el-form :model="caseData.case_info" label-width="100px">
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="放款流水页数">
-                  <el-input v-model="caseData.case_info.page_number1" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="还款流水页数">
-                  <el-input v-model="caseData.case_info.page_number2" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="金额计算表页数" label-width="110px">
-                  <el-input v-model="caseData.case_info.page_number3" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
-        </div>
         </el-scrollbar>
 
         <div class="step-actions">
@@ -696,6 +697,9 @@
           <div class="card-header">
             <el-icon class="header-icon"><Document /></el-icon>
             <span>步骤3：生成法律文书</span>
+            <el-button type="primary" link class="select-all-btn" @click="toggleSelectAll">
+              {{ allSelected ? '取消全选' : '全选' }}
+            </el-button>
           </div>
         </template>
 
@@ -928,6 +932,20 @@ const docCheckboxOptions = computed(() => {
 
 // 选中要生成的文书
 const selectedDocs = ref([])
+
+// 是否已全选
+const allSelected = computed(() => {
+  return selectedDocs.value.length > 0 && selectedDocs.value.length === docCheckboxOptions.value.length
+})
+
+// 切换全选/取消全选
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedDocs.value = []
+  } else {
+    selectedDocs.value = docCheckboxOptions.value.map(opt => opt.value)
+  }
+}
 
 // 初始化选中状态：默认全选（含起诉状）
 function initSelectedDocs() {
@@ -1482,6 +1500,10 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.select-all-btn {
+  margin-left: auto;
 }
 
 .header-icon {
