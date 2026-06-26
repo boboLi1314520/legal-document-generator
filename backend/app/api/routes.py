@@ -811,36 +811,13 @@ async def generate_selected(request: SelectedDocumentsRequest):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     files = []
 
-    # 文书类型映射 - 1-10诉讼材料, 11-15执行材料
-    doc_type_map = {
-        # 民事起诉状（两种案由）
-        "起诉状-清算责任纠纷": ("1-民事起诉状-清算责任纠纷模板.docx", "起诉状_清算责任纠纷", True),
-        "起诉状-损害公司债权人利益责任纠纷": ("1-民事起诉状-损害公司债权人利益责任纠纷模板.docx", "起诉状_损害公司债权人利益责任纠纷", True),
-        # 诉讼材料 2-10
-        "证据目录": ("2-证据目录模板.docx", "证据目录", False),
-        "保函": ("3-保函模板.docx", "保函", False),
-        "保全申请书": ("4-保全申请书模板.docx", "保全申请书", False),
-        "诉讼授权委托书": ("5-诉讼授权委托书模板.docx", "诉讼授权委托书", False),
-        "诉讼文书送达地址确认": ("6-诉讼文书送达地址确认模板.docx", "诉讼文书送达地址确认书", False),
-        "诉讼公函": ("7-诉讼公函模板.docx", "诉讼公函", False),
-        "诉讼费退费账号": ("8-诉讼费退费账号模板.docx", "诉讼费退费账号确认书", False),
-        "网络查控申请书": ("9-网络查控申请书模板.docx", "网络查控申请书", False),
-        "执行公函": ("10-执行公函模板.docx", "执行公函", False),
-        # 执行材料 11-15
-        "执行款收款账户": ("11-执行款收款账户模板.docx", "执行款收款账户确认书", False),
-        "执行授权委托书": ("12-执行授权委托书模板.docx", "执行授权委托书", False),
-        "执行申请书": ("13-执行申请书模板.docx", "执行申请书", False),
-        "执行送达地址确认": ("14-执行送达地址确认模板.docx", "执行送达地址确认书", False),
-        "律师函": ("15-律师函模板.docx", "律师函", False),
-    }
-
     company_name = ""
     for case_data in case_data_list:
         company_name = case_data.company_info.target_company or case_data.id
         for doc_type in request.doc_types:
-            if doc_type not in doc_type_map:
+            if doc_type not in DOC_TYPE_MAP:
                 continue
-            template_file, output_name, is_complaint = doc_type_map[doc_type]
+            template_file, output_name, is_complaint = DOC_TYPE_MAP[doc_type]
 
             # 设置案由
             if is_complaint and "清算责任" in doc_type:
@@ -1147,6 +1124,51 @@ async def ai_check_form(case_id: str):
 # ==================== 批量生成文书接口 ====================
 
 
+# 文书类型映射 - 1-10诉讼材料, 11-15执行材料
+DOC_TYPE_MAP = {
+    "起诉状-清算责任纠纷": ("1-民事起诉状-清算责任纠纷模板.docx", "起诉状_清算责任纠纷", True),
+    "起诉状-损害公司债权人利益责任纠纷": ("1-民事起诉状-损害公司债权人利益责任纠纷模板.docx", "起诉状_损害公司债权人利益责任纠纷", True),
+    "证据目录": ("2-证据目录模板.docx", "证据目录", False),
+    "保函": ("3-保函模板.docx", "保函", False),
+    "保全申请书": ("4-保全申请书模板.docx", "保全申请书", False),
+    "诉讼授权委托书": ("5-诉讼授权委托书模板.docx", "诉讼授权委托书", False),
+    "诉讼文书送达地址确认": ("6-诉讼文书送达地址确认模板.docx", "诉讼文书送达地址确认书", False),
+    "诉讼公函": ("7-诉讼公函模板.docx", "诉讼公函", False),
+    "诉讼费退费账号": ("8-诉讼费退费账号模板.docx", "诉讼费退费账号确认书", False),
+    "网络查控申请书": ("9-网络查控申请书模板.docx", "网络查控申请书", False),
+    "执行公函": ("10-执行公函模板.docx", "执行公函", False),
+    "执行款收款账户": ("11-执行款收款账户模板.docx", "执行款收款账户确认书", False),
+    "执行授权委托书": ("12-执行授权委托书模板.docx", "执行授权委托书", False),
+    "执行申请书": ("13-执行申请书模板.docx", "执行申请书", False),
+    "执行送达地址确认": ("14-执行送达地址确认模板.docx", "执行送达地址确认书", False),
+    "律师函": ("15-律师函模板.docx", "律师函", False),
+}
+
+# XLSX列名到模板变量名的映射（按文书类型）
+BATCH_COLUMN_MAP = {
+    "律师函": {
+        "收件人": "收件人",
+        "案号": "仲裁案号",
+        "金额": "金额",
+    }
+}
+
+
+def _apply_column_map(rows: list, doc_type: str) -> list:
+    """将XLSX列名映射为模板变量名"""
+    if doc_type not in BATCH_COLUMN_MAP:
+        return rows
+    mapping = BATCH_COLUMN_MAP[doc_type]
+    mapped_rows = []
+    for row in rows:
+        mapped_row = {}
+        for col, value in row.items():
+            mapped_key = mapping.get(col, col)
+            mapped_row[mapped_key] = value
+        mapped_rows.append(mapped_row)
+    return mapped_rows
+
+
 def _parse_batch_xlsx(file) -> list:
     """解析批量上传的 XLSX 文件，返回数据行列表（字典格式）"""
     from openpyxl import load_workbook
@@ -1178,7 +1200,7 @@ async def _do_preview_batch_xlsx(file: UploadFile, doc_type: str):
     if not file.filename.lower().endswith('.xlsx'):
         raise HTTPException(status_code=400, detail="仅支持.xlsx格式文件")
 
-    if doc_type not in doc_type_map:
+    if doc_type not in DOC_TYPE_MAP:
         raise HTTPException(status_code=400, detail=f"不支持的文书类型: {doc_type}")
 
     temp_path = os.path.join(UPLOAD_DIR, f"temp_batch_{uuid.uuid4().hex[:8]}.xlsx")
@@ -1186,8 +1208,9 @@ async def _do_preview_batch_xlsx(file: UploadFile, doc_type: str):
         shutil.copyfileobj(file.file, buffer)
 
     rows = _parse_batch_xlsx(temp_path)
+    rows = _apply_column_map(rows, doc_type)
 
-    template_file, _, _ = doc_type_map[doc_type]
+    template_file, _, _ = DOC_TYPE_MAP[doc_type]
     template_path = os.path.join(TEMPLATE_DIR, template_file)
     template_variables = []
     if os.path.exists(template_path):
@@ -1211,7 +1234,7 @@ async def _do_generate_batch(file: UploadFile, doc_type: str):
     if not file.filename.lower().endswith('.xlsx'):
         raise HTTPException(status_code=400, detail="仅支持.xlsx格式文件")
 
-    if doc_type not in doc_type_map:
+    if doc_type not in DOC_TYPE_MAP:
         raise HTTPException(status_code=400, detail=f"不支持的文书类型: {doc_type}")
 
     temp_path = os.path.join(UPLOAD_DIR, f"temp_batch_gen_{uuid.uuid4().hex[:8]}.xlsx")
@@ -1219,8 +1242,9 @@ async def _do_generate_batch(file: UploadFile, doc_type: str):
         shutil.copyfileobj(file.file, buffer)
 
     rows = _parse_batch_xlsx(temp_path)
+    rows = _apply_column_map(rows, doc_type)
 
-    template_file, output_name, _ = doc_type_map[doc_type]
+    template_file, output_name, _ = DOC_TYPE_MAP[doc_type]
     template_path = os.path.join(TEMPLATE_DIR, template_file)
     if not os.path.exists(template_path):
         raise HTTPException(status_code=400, detail=f"模板不存在: {template_file}")
