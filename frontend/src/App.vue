@@ -129,7 +129,7 @@
                   </div>
                   <template #tip>
                     <div class="el-upload__tip">
-                      第一行为表头（列名与模板变量对应），每行为一份文书的数据
+                      上传的表格列名要求依次为：收件人、仲裁案号、金额
                     </div>
                   </template>
                 </el-upload>
