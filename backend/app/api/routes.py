@@ -1244,6 +1244,12 @@ async def _do_generate_batch(file: UploadFile, doc_type: str):
     rows = _parse_batch_xlsx(temp_path)
     rows = _apply_column_map(rows, doc_type)
 
+    # 为每行数据补充当天日期（如果模板变量{date}未提供）
+    today = datetime.now().strftime("%Y年%m月%d日")
+    for row in rows:
+        if "date" not in row or not row.get("date"):
+            row["date"] = today
+
     template_file, output_name, _ = DOC_TYPE_MAP[doc_type]
     template_path = os.path.join(TEMPLATE_DIR, template_file)
     if not os.path.exists(template_path):
