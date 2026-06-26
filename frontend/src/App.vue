@@ -890,7 +890,6 @@ const litigationOptions = computed(() => {
     { label: '诉讼公函', value: '诉讼公函' },
     { label: '诉讼费退费账号', value: '诉讼费退费账号' },
     { label: '网络查控申请书', value: '网络查控申请书' },
-    { label: '执行公函', value: '执行公函' },
   ]
   const reason = caseData.case_info.case_reason
   if (reason) {
@@ -899,9 +898,10 @@ const litigationOptions = computed(() => {
   return options
 })
 
-// 执行材料可选文书（11-14，律师函由批量上传单独生成）
+// 执行材料可选文书（10-14，律师函由批量上传单独生成）
 const executionOptions = computed(() => {
   return [
+    { label: '执行公函', value: '执行公函' },
     { label: '执行款收款账户', value: '执行款收款账户' },
     { label: '执行授权委托书', value: '执行授权委托书' },
     { label: '执行申请书', value: '执行申请书' },
