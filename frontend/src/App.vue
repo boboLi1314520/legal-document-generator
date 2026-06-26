@@ -641,45 +641,6 @@
           </div>
         </div>
 
-        <!-- 律师函信息 -->
-        <div class="section-block" v-if="sectionVisible.lawyerLetter">
-          <div class="section-title"><el-icon><Message /></el-icon> 律师函信息</div>
-          <el-form :model="caseData.lawyer_letter_info" label-width="100px">
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="收件人">
-                  <el-input v-model="caseData.lawyer_letter_info.recipient" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="金额">
-                  <el-input v-model="caseData.lawyer_letter_info.amount" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="仲裁案号">
-                  <el-input v-model="caseData.lawyer_letter_info.case_number" placeholder="手动填写" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="日期">
-                  <el-input v-model="caseData.lawyer_letter_info.date" placeholder="如：2026年05月06日" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
-          <div class="section-footer">
-            <el-button type="danger" size="small" @click="sectionVisible.lawyerLetter = false">
-              <el-icon><Delete /></el-icon>
-              删除
-            </el-button>
-          </div>
-        </div>
-
         </el-scrollbar>
 
         <div class="step-actions">
