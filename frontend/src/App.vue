@@ -108,17 +108,8 @@
             </div>
           </el-tab-pane>
 
-          <el-tab-pane label="批量生成文书" name="batch_lawyer">
+          <el-tab-pane label="批量生成律师函" name="batch_lawyer">
             <div class="batch-lawyer-section">
-              <!-- 文书类型选择 -->
-              <div class="batch-doc-type">
-                <el-form-item label="选择文书类型" label-width="110px">
-                  <el-select v-model="batchDocType" placeholder="请选择文书类型" style="width: 320px;" size="large">
-                    <el-option v-for="opt in docTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-                  </el-select>
-                </el-form-item>
-              </div>
-
               <!-- 上传XLSX区域 -->
               <div class="batch-upload-area">
                 <el-upload
@@ -181,7 +172,7 @@
                   </h4>
                   <el-button type="success" size="large" @click="batchGenerateDocuments" :loading="batchGenerating">
                     <el-icon><Download /></el-icon>
-                    一键生成{{ docTypeLabel }}
+                    一键生成律师函
                   </el-button>
                 </div>
                 <el-table :data="xlsxPreviewData.rows" border stripe size="small" max-height="400" style="width: 100%">
@@ -658,17 +649,38 @@
           <div class="card-header">
             <el-icon class="header-icon"><Document /></el-icon>
             <span>步骤3：生成法律文书</span>
-            <el-button type="primary" link class="select-all-btn" @click="toggleSelectAll">
-              {{ allSelected ? '取消全选' : '全选' }}
-            </el-button>
           </div>
         </template>
 
-        <el-checkbox-group v-model="selectedDocs" class="doc-checkbox-group">
-          <el-checkbox v-for="opt in docCheckboxOptions" :key="opt.value" :label="opt.value">
-            {{ opt.label }}
-          </el-checkbox>
-        </el-checkbox-group>
+        <!-- 诉讼材料 -->
+        <div class="doc-section">
+          <div class="doc-section-header">
+            <span class="doc-section-title">诉讼材料</span>
+            <el-button type="primary" link @click="toggleLitigationAll">
+              {{ allLitigationSelected ? '取消全选' : '全选' }}
+            </el-button>
+          </div>
+          <el-checkbox-group v-model="selectedDocs" class="doc-checkbox-group">
+            <el-checkbox v-for="opt in litigationOptions" :key="opt.value" :label="opt.value">
+              {{ opt.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </div>
+
+        <!-- 执行材料 -->
+        <div class="doc-section">
+          <div class="doc-section-header">
+            <span class="doc-section-title">执行材料</span>
+            <el-button type="primary" link @click="toggleExecutionAll">
+              {{ allExecutionSelected ? '取消全选' : '全选' }}
+            </el-button>
+          </div>
+          <el-checkbox-group v-model="selectedDocs" class="doc-checkbox-group">
+            <el-checkbox v-for="opt in executionOptions" :key="opt.value" :label="opt.value">
+              {{ opt.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </div>
 
         <div class="step-actions">
           <el-button @click="currentStep = 1">上一步</el-button>
@@ -867,22 +879,18 @@ watch(() => caseData.debt_info.guarantee_amount, (newVal) => {
   }
 })
 
-// 所有可选的文书类型（根据案由动态确定起诉状选项）
-const docCheckboxOptions = computed(() => {
+// 诉讼材料可选文书（1-10）
+const litigationOptions = computed(() => {
   const options = [
     { label: '证据目录', value: '证据目录' },
     { label: '保函', value: '保函' },
     { label: '保全申请书', value: '保全申请书' },
-    { label: '法律文书送达地址确认', value: '法律文书送达地址确认' },
     { label: '诉讼授权委托书', value: '诉讼授权委托书' },
     { label: '诉讼文书送达地址确认', value: '诉讼文书送达地址确认' },
-    { label: '公函', value: '公函' },
+    { label: '诉讼公函', value: '诉讼公函' },
     { label: '诉讼费退费账号', value: '诉讼费退费账号' },
     { label: '网络查控申请书', value: '网络查控申请书' },
-    { label: '执行款收款账户', value: '执行款收款账户' },
-    { label: '执行授权委托书', value: '执行授权委托书' },
-    { label: '执行申请书', value: '执行申请书' },
-    { label: '律师函', value: '律师函' },
+    { label: '执行公函', value: '执行公函' },
   ]
   const reason = caseData.case_info.case_reason
   if (reason) {
@@ -891,20 +899,55 @@ const docCheckboxOptions = computed(() => {
   return options
 })
 
+// 执行材料可选文书（11-14，律师函由批量上传单独生成）
+const executionOptions = computed(() => {
+  return [
+    { label: '执行款收款账户', value: '执行款收款账户' },
+    { label: '执行授权委托书', value: '执行授权委托书' },
+    { label: '执行申请书', value: '执行申请书' },
+    { label: '执行送达地址确认', value: '执行送达地址确认' },
+  ]
+})
+
+// 所有可选文书（合并）
+const docCheckboxOptions = computed(() => {
+  return [...litigationOptions.value, ...executionOptions.value]
+})
+
 // 选中要生成的文书
 const selectedDocs = ref([])
 
-// 是否已全选
-const allSelected = computed(() => {
-  return selectedDocs.value.length > 0 && selectedDocs.value.length === docCheckboxOptions.value.length
+// 诉讼材料是否全选
+const allLitigationSelected = computed(() => {
+  const litValues = litigationOptions.value.map(o => o.value)
+  return litValues.length > 0 && litValues.every(v => selectedDocs.value.includes(v))
 })
 
-// 切换全选/取消全选
-function toggleSelectAll() {
-  if (allSelected.value) {
-    selectedDocs.value = []
+// 切换诉讼材料全选/取消全选
+function toggleLitigationAll() {
+  const litValues = litigationOptions.value.map(o => o.value)
+  if (allLitigationSelected.value) {
+    selectedDocs.value = selectedDocs.value.filter(v => !litValues.includes(v))
   } else {
-    selectedDocs.value = docCheckboxOptions.value.map(opt => opt.value)
+    const newSet = new Set([...selectedDocs.value, ...litValues])
+    selectedDocs.value = [...newSet]
+  }
+}
+
+// 执行材料是否全选
+const allExecutionSelected = computed(() => {
+  const execValues = executionOptions.value.map(o => o.value)
+  return execValues.length > 0 && execValues.every(v => selectedDocs.value.includes(v))
+})
+
+// 切换执行材料全选/取消全选
+function toggleExecutionAll() {
+  const execValues = executionOptions.value.map(o => o.value)
+  if (allExecutionSelected.value) {
+    selectedDocs.value = selectedDocs.value.filter(v => !execValues.includes(v))
+  } else {
+    const newSet = new Set([...selectedDocs.value, ...execValues])
+    selectedDocs.value = [...newSet]
   }
 }
 
@@ -945,29 +988,6 @@ const xlsxPreviewData = reactive({
 const templateVariables = ref([])
 const previewingXlsx = ref(false)
 const batchGenerating = ref(false)
-const batchDocType = ref('律师函')
-
-// 批量生成支持的文书类型（排除起诉状两种变体）
-const docTypeOptions = [
-  { label: '律师函', value: '律师函' },
-  { label: '证据目录', value: '证据目录' },
-  { label: '保函', value: '保函' },
-  { label: '保全申请书', value: '保全申请书' },
-  { label: '法律文书送达地址确认书', value: '法律文书送达地址确认' },
-  { label: '诉讼授权委托书', value: '诉讼授权委托书' },
-  { label: '诉讼文书送达地址确认书', value: '诉讼文书送达地址确认' },
-  { label: '公函', value: '公函' },
-  { label: '诉讼费退费账号确认书', value: '诉讼费退费账号' },
-  { label: '网络查控申请书', value: '网络查控申请书' },
-  { label: '执行款收款账户确认书', value: '执行款收款账户' },
-  { label: '执行授权委托书', value: '执行授权委托书' },
-  { label: '执行申请书', value: '执行申请书' }
-]
-
-const docTypeLabel = computed(() => {
-  const opt = docTypeOptions.find(o => o.value === batchDocType.value)
-  return opt ? opt.label : '文书'
-})
 
 // 文件类型映射
 const FILE_TYPE_MAP = {
@@ -1262,7 +1282,7 @@ async function previewXlsx() {
     const file = xlsxFileList.value[0].raw
     const fd = new FormData()
     fd.append('file', file)
-    fd.append('doc_type', batchDocType.value)
+    fd.append('doc_type', '律师函')
     const response = await fetch('/api/batch/preview-xlsx', {
       method: 'POST',
       body: fd
@@ -1303,7 +1323,7 @@ async function batchGenerateDocuments() {
     const file = xlsxFileList.value[0].raw
     const fd = new FormData()
     fd.append('file', file)
-    fd.append('doc_type', batchDocType.value)
+    fd.append('doc_type', '律师函')
     const response = await fetch('/api/batch/generate', {
       method: 'POST',
       body: fd
@@ -1463,8 +1483,23 @@ body {
   gap: 10px;
 }
 
-.select-all-btn {
-  margin-left: auto;
+.doc-section {
+  margin-bottom: 20px;
+}
+
+.doc-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.doc-section-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #303133;
 }
 
 .header-icon {
