@@ -306,6 +306,7 @@ class DocxService:
                 font_name = first_run.font.name
                 font_size = first_run.font.size
                 font_bold = first_run.font.bold
+                font_underline = first_run.font.underline
 
                 # 检查是否包含换行符，需要拆分为多个独立段落
                 if "\n" in new_text:
@@ -322,6 +323,8 @@ class DocxService:
                         run.font.size = font_size
                     if font_bold is not None:
                         run.font.bold = font_bold
+                    if font_underline is not None:
+                        run.font.underline = font_underline
                     para.paragraph_format.first_line_indent = indent
 
                     # 后续行创建新段落，插入到当前段落后
@@ -343,6 +346,8 @@ class DocxService:
                             new_run.font.size = font_size
                         if font_bold is not None:
                             new_run.font.bold = font_bold
+                        if font_underline is not None:
+                            new_run.font.underline = font_underline
                         new_para.paragraph_format.first_line_indent = indent
 
                         parent_elem = new_p_elem
@@ -358,6 +363,8 @@ class DocxService:
                         run.font.size = font_size
                     if font_bold is not None:
                         run.font.bold = font_bold
+                    if font_underline is not None:
+                        run.font.underline = font_underline
             else:
                 # 没有run，直接替换文本
                 para.text = new_text
