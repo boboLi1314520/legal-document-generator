@@ -18,7 +18,7 @@ class ExtractorService:
     KEY_FILE_PATTERNS = {
         "public_report": ["公示系统", "企业信用信息公示"],
         "business_license": ["营业执照信息"],
-        "shareholder_detail": ["股东及出资详细信息"],
+        "shareholder_detail": ["股东及出资详细信息", "股东信息"],
         "id_card_front": ["身份证正面照片", "身份证正面"],
         "id_card_back": ["身份证反面照片", "身份证反面"],
         "quota_contract": ["额度合同"],
