@@ -188,6 +188,15 @@
               </div>
             </div>
           </el-tab-pane>
+          <el-tab-pane label="一键生成执行材料" name="batch_execution">
+            <div class="batch-lawyer-section">
+              <el-alert type="warning" :closable="false" show-icon style="margin-bottom: 16px;">
+                <template #title>
+                  功能开发中，请告知具体步骤
+                </template>
+              </el-alert>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </el-card>
 
@@ -573,64 +582,6 @@
           </el-form>
         </div>
 
-        <!-- 执行申请书信息 -->
-        <div class="section-block" v-if="sectionVisible.execution">
-          <div class="section-title"><el-icon><FolderOpened /></el-icon> 执行申请书信息</div>
-          <el-form :model="caseData.execution_info" label-width="130px">
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="执行依据判决案号">
-                  <el-input v-model="caseData.execution_info.judgment_case_number" placeholder="自动从判决书提取" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="判决本金">
-                  <el-input v-model="caseData.execution_info.judgment_principal" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="判决利息">
-                  <el-input v-model="caseData.execution_info.judgment_interest" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="受理费">
-                  <el-input v-model="caseData.execution_info.court_fee" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="保全费">
-                  <el-input v-model="caseData.execution_info.preservation_fee" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="公告费">
-                  <el-input v-model="caseData.execution_info.notice_fee" placeholder="手动填写">
-                    <template #append>元</template>
-                  </el-input>
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
-          <div class="section-footer">
-            <el-button type="danger" size="small" @click="sectionVisible.execution = false">
-              <el-icon><Delete /></el-icon>
-              删除
-            </el-button>
-          </div>
-        </div>
 
         </el-scrollbar>
 
