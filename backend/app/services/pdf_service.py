@@ -105,14 +105,13 @@ class PDFService:
 
         # 使用RapidOCR（推荐，轻量级）
         try:
-            from rapidocr_onnxruntime import RapidOCR
+            from rapidocr import RapidOCR
             ocr = RapidOCR()
-            result, elapse = ocr(image_path)  # 直接调用
-            if result:
-                for line in result:
-                    if line and len(line) >= 2:
-                        # RapidOCR返回格式: [坐标, 文本, 置信度]
-                        text += line[1] + "\n"
+            result = ocr(image_path)
+            if result.txts:
+                for recognized_text in result.txts:
+                    if recognized_text:
+                        text += recognized_text + "\n"
             if text.strip():
                 return text
         except Exception as e:
@@ -154,28 +153,25 @@ class PDFService:
 
         # RapidOCR（推荐，返回坐标）
         try:
-            from rapidocr_onnxruntime import RapidOCR
+            from rapidocr import RapidOCR
             ocr = RapidOCR()
-            result, elapse = ocr(image_path)
-            if result:
-                for line in result:
-                    if line and len(line) >= 2:
-                        coords = line[0]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
-                        text = line[1]
-                        if not text or not text.strip():
-                            continue
-                        if coords and len(coords) >= 4:
-                            x1, y1 = coords[0][0], coords[0][1]
-                            x3, y3 = coords[2][0], coords[2][1]
-                            blocks.append({
-                                "text": text.strip(),
-                                "x": float(x1),
-                                "y": float(y1),
-                                "cx": float((x1 + x3) / 2),
-                                "cy": float((y1 + y3) / 2),
-                                "width": float(abs(x3 - x1)),
-                                "height": float(abs(y3 - y1))
-                            })
+            result = ocr(image_path)
+            if result.txts and result.boxes is not None:
+                for coords, text in zip(result.boxes, result.txts):
+                    if not text or not text.strip():
+                        continue
+                    if len(coords) >= 4:
+                        x1, y1 = coords[0][0], coords[0][1]
+                        x3, y3 = coords[2][0], coords[2][1]
+                        blocks.append({
+                            "text": text.strip(),
+                            "x": float(x1),
+                            "y": float(y1),
+                            "cx": float((x1 + x3) / 2),
+                            "cy": float((y1 + y3) / 2),
+                            "width": float(abs(x3 - x1)),
+                            "height": float(abs(y3 - y1))
+                        })
                 if blocks:
                     return blocks
         except Exception as e:

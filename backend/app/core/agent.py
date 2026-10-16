@@ -75,17 +75,11 @@ class LegalAgent:
 
         # 使用RapidOCR（推荐，轻量级）
         try:
-            from rapidocr_onnxruntime import RapidOCR
+            from rapidocr import RapidOCR
             ocr = RapidOCR()
-            ocr_result, elapse = ocr(image_path)  # 直接调用
-            if ocr_result:
-                all_text = []
-                for line in ocr_result:
-                    if line and len(line) >= 2:
-                        # RapidOCR返回格式: [坐标, 文本, 置信度]
-                        all_text.append(line[1])
-
-                full_text = " ".join(all_text)
+            ocr_result = ocr(image_path)
+            if ocr_result.txts:
+                full_text = " ".join(text for text in ocr_result.txts if text)
                 print(f"RapidOCR识别结果: {full_text}")
 
                 # 解析身份证信息

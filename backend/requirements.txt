@@ -16,8 +16,9 @@ python-docx>=1.0.0
 openpyxl>=3.1.0
 pandas>=2.0.0
 
-# OCR（可选，按需安装，rapidocr_onnxruntime 已足够）
-rapidocr-onnxruntime>=1.3.0
+# OCR（RapidOCR + ONNX Runtime）
+rapidocr>=3.10.0,<4.0.0
+onnxruntime>=1.31.0,<2.0.0
 
 # AI/LangChain（AI助手功能）
 langchain>=0.3.0
