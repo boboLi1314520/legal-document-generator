@@ -1,0 +1,18 @@
+# 行尾统一规则
+#
+# 背景：本项目曾从 Windows 打包（zip）传到 macOS，工作区文件因此带上 CRLF，
+# 而仓库内历史存的是 LF。若不声明规则，git 会把每一行的行尾差异都算作改动，
+# 导致 `git diff` 充满噪声（实测曾达 11350 insertions / 11521 deletions，
+# 而真实改动只有 138 / 309），无法用于代码审查。
+#
+# 本文件只声明规则，不改写任何已有文件内容。
+
+# 默认由 git 判定：是文本就按 LF 存入仓库、比较时把工作区行尾归一化
+* text=auto
+
+# Windows 批处理必须保留 CRLF，否则 cmd.exe 在部分场景（goto/标签）会出错
+*.bat text eol=crlf
+
+# macOS / Linux 脚本使用 LF
+*.command text eol=lf
+*.sh      text eol=lf

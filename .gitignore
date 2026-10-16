@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.venv-mac*/
 venv/
 ENV/
 
@@ -25,9 +26,18 @@ outputs/
 *.txt
 !requirements.txt
 
+# 运行时日志与本地备份（不应进入版本库）
+backend/server.log
+*.log
+frontend/dist.bak-*/
+frontend/.vite/
+
 # 系统文件
 .DS_Store
 Thumbs.db
 
 # 公司敏感文件
 公司文件汇总/
+
+# 本地备份文件
+*.bak-*
